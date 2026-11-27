@@ -55,3 +55,8 @@ The person's move of this card into Next on Relay carries the note "Person: pilo
 - Application folder and test commands on the card: change map above, summarised in the done comment.
 - Tests passing before the change: Java 64 of 67 (1 flaky failure, 2 skipped), UI 25 of 25.
 - One slice: yes.
+
+## Plan, the card lead, 2026-11-27
+
+The move note "defaults accepted" is not criteria written on the card, and criteria are a person's act, so Plan asked once on Relay (SBM-Q1, kind criteria) with the same three items and defaults. The card waits on the person; Relay released the claim.
+Next step: on the answer, copy the criteria onto the card word for word, write the design and roadmap here, have a fresh helper read them.
