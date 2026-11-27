@@ -60,3 +60,63 @@ The person's move of this card into Next on Relay carries the note "Person: pilo
 
 The move note "defaults accepted" is not criteria written on the card, and criteria are a person's act, so Plan asked once on Relay (SBM-Q1, kind criteria) with the same three items and defaults. The card waits on the person; Relay released the claim.
 Next step: on the answer, copy the criteria onto the card word for word, write the design and roadmap here, have a fresh helper read them.
+
+### Answer (SBM-Q1, answered by the person 2026-11-27 08:53, all defaults accepted)
+
+Criteria, word for word, also copied onto the card's description:
+
+- AC1 a pull request or push to main starts the pipeline: mvn -B clean test and the UI tests.
+- AC2 it fails when a Java or UI test fails.
+- AC3 no existing source, test or build file changes.
+- AC4 on this card's pull request it passes, running every existing test (2 HBase tests may skip).
+
+Decisions: (2a) retry a failed Java test up to 2 times; a new card fixes the race (risk SBM-3). (3a) Linux with Java 8.
+
+### Design
+
+One new file, `.github/workflows/ci.yml`, two jobs that run side by side on `ubuntu-24.04`:
+
+| Job | Steps |
+|---|---|
+| `java` | `actions/checkout@v4`; `actions/setup-java@v4` (Temurin 8, `cache: maven`); `mvn -B clean test -Dsurefire.rerunFailingTestsCount=2` |
+| `ui` | `actions/checkout@v4`; `actions/setup-node@v4` (Node 22, `cache: npm`, `cache-dependency-path: ui/package-lock.json`); `npm ci` and `npx ng test --watch=false --browsers=ChromeHeadless` in `ui/` (Chrome is on the runner image) |
+
+- Triggers: `pull_request` (any base) and `push` to `main` (AC1). `workflow_dispatch` too, for re-runs by hand.
+- `permissions: contents: read`; `concurrency` per ref with `cancel-in-progress` so pushes to one pull request do not queue.
+- Retry (decision 2a) comes from the command line, not the pom (AC3): surefire 2.22.2 with JUnit 4.13.2 supports `rerunFailingTestsCount`; a test that passes on a rerun is reported as a flake and the build passes, one that fails three times fails the build (AC2 holds). The UI tests get no retry: they passed 25 of 25 and none is known flaky.
+- Test reports (`**/target/surefire-reports/*.xml`, UI console log) are uploaded as artifacts with `if: always()` so counts can be read on a failing run too (proof for AC4).
+- Why these choices (SA-3, the agent decides): Temurin is the setup-java default with JDK 8 on Linux x64; Node 22 meets Angular 20's floor (20.19) and is an LTS; actions pinned to major tags, as is common, not to SHAs (noted as a choice a person may tighten).
+
+Not in this card: the race fix (risk SBM-3, own card), any pom, source or test change, HBase in the pipeline (the 2 HBase tests keep skipping, as AC4 allows).
+
+### How each criterion is proved (for Test design)
+
+| Criterion | Proof |
+|---|---|
+| AC1 | The draft pull request starts both jobs (run link); a check script `AC1_` reads `ci.yml` and asserts the triggers and the two commands. |
+| AC2 | Sensitivity: on a scratch branch off the card's branch (never merged), one deliberately failing Java test, then one failing UI spec; each run is red (run links), then the branch is deleted. A check script `AC2_` asserts no `continue-on-error` and no `|| true` in `ci.yml`. |
+| AC3 | `git diff --name-only origin/main...HEAD` lists only `.github/` and `docs/` (and any new acceptance-check files); a check script `AC3_` asserts it. |
+| AC4 | The pull request's run is green; surefire reports show 67 run, at most 2 skipped (the HBase ones), every existing test class present; the UI log shows `TOTAL: 25 SUCCESS`. |
+
+Acceptance checks are new files under `.github/acceptance/` (names start `AC1_` ... `AC4_`), run by a third small job `acceptance` in the same workflow so the pipeline shows them failing before `ci.yml` exists in full. Test design settles the exact form.
+
+### Roadmap
+
+1. Test design: add `.github/acceptance/AC1_`..`AC4_` checks and a minimal workflow that runs only them; commit, push, open the draft pull request; the run shows them failing (no `java`/`ui` jobs yet).
+2. Build: add the `java` job; push; check counts against the baseline (64+ pass, flaky class passes or shows as flake, 2 skipped).
+3. Build: add the `ui` job; push; 25 of 25.
+4. Build: AC2 sensitivity run on a scratch branch, links in this file, branch deleted.
+5. Build: pipeline green on the latest commit with the acceptance checks unchanged; pull request ready for review.
+
+Each step changes only `.github/` and this file, so no commit changes the application's behaviour.
+
+### Design read with fresh context
+
+Gap: this session has no tool to start a helper agent, and running a separate `claude -p` reviewer needed a person's approval, which a non-interactive run cannot get. So the design was checked by the card lead against a written list instead. The Review stage's fresh reviewer reads it again. Findings and what was done:
+
+1. The AC3 check diffs against `origin/main`: the `acceptance` job must check out with `fetch-depth: 0`. Added to the design (resolved).
+2. AC4's "every existing test class" needs a fixed list: the AC4 check takes the test classes under `*/src/test` on `main` (845b371) and requires a surefire report for each, so the list does not depend on counts the new tests change (resolved).
+3. A test rerun by surefire still counts once in the report (`flakyFailure` entries inside the same `testcase`), so 67 stays 67 (answered).
+4. Spark 2.4 local mode on Linux JDK 8 needs no Hadoop `winutils`; runner hostnames resolve. A failure here shows on the first `java` run in Build, step 2 (answered, watched).
+5. Maven 3.9 and Chrome are on the `ubuntu-24.04` image; no install step (answered).
+6. AC2 with retries: a test that always fails fails 3 times and the job is red, so retries do not hide a real failure (answered; the sensitivity run proves it).
