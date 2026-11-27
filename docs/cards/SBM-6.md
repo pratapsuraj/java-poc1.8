@@ -59,3 +59,14 @@ One slice a person can try: "run the Java tests in any order on a clean machine 
 - Application folder and its test command: above.
 - Tests passing before the change: 65 of 67, 2 skipped (above).
 - One slice: yes (above).
+
+## Plan, the card lead, 2026-11-27
+
+Asked SBM-Q8 (criteria, set-up and clean-up changes under SA-2, pipeline order), defaults as in Assess's decisions. The card waits on a person; design and roadmap follow the answer.
+
+### Checkpoint
+
+- Learned: the dependence is `report.dir` fixed by whichever Spring test class builds the cached context first, plus a shared, never-cleaned report folder that hides it locally.
+- Decisions: test-only change; one slice; verdict proceed with review (by hand).
+- Open: SBM-Q8.
+- Next: copy the answered criteria onto the card's description; design (likely: `TestInfraConfig` gives the context its own fresh report folder, classes read it from the context instead of a system property; remove leftovers in set-up), roadmap, fresh-context review, then Test design.
