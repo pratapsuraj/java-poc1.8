@@ -29,6 +29,6 @@ public class SparkJobDelegate implements JavaDelegate {
             RunFailure.mark(repository, execution, "spark", e);
             return;
         }
-        repository.updateAudit(pid, "WAITING_APPROVAL", null);
+        AfterCommit.status(repository, pid, "WAITING_APPROVAL"); // once the approval task is saved
     }
 }
