@@ -161,3 +161,19 @@ Pipeline on the test commit 5b9f50c: https://github.com/pratapsuraj/java-poc1.8/
 Draft pull request: https://github.com/pratapsuraj/java-poc1.8/pull/7 , linked on the card.
 
 Found: SBM-2's pipeline check "AC3 no existing source, test or build file changes" (`.github/acceptance/AC3_...sh`, step in `.github/workflows/ci.yml`) fails on this pull request because a new test file lies outside `.github/` and `docs/`. It was SBM-2's own criterion, merged into `main`'s pipeline, so it fails every later pull request that changes code. Under standing answer SA-2 an agent may not change an existing test, so Build cannot make the pipeline green alone; see Build.
+
+## Build, the card lead, 2026-11-27
+
+Commits: 30f97a1 (`delegate/AfterCommit.java`, the after-commit write with the `RUNNING` guard, 3 retries at 100/200/400 ms then an error log, never throws; unit test `delegate/AfterCommitTest.java`, 4 tests), bbcd5be (`SparkJobDelegate` and `RunFailure` call it; nothing else in them changes). Design as in Plan, no deviation. Acceptance tests unchanged since 5b9f50c (`git diff 5b9f50c bbcd5be -- '*src/test*'` adds only `AfterCommitTest.java`).
+
+| Check | Result |
+|---|---|
+| Local whole build `mvn -B clean test -Dsurefire.runOrder=alphabetical`, no retries | BUILD SUCCESS, 77 run (67 before + 6 acceptance + 4 unit), 0 failed, 2 skipped (HBase) (`.prime/tmp/SBM-5/build-full.log`) |
+| AC1, AC2 acceptance tests | pass (red on 5b9f50c, green on bbcd5be: the fix is what turns them) |
+| AC3 test (existing `SalesBatchProcessTest` and `BatchControllerTest`, 20 runs in a row, no reruns) | pass locally and on the pipeline; existing test files unchanged (`git diff --name-status origin/main...bbcd5be` shows no modified file under `src/test`) |
+| AC4 test (status sequences, report, error text) | pass; full side-by-side is Verify's |
+| Pipeline on bbcd5be https://github.com/pratapsuraj/java-poc1.8/actions/runs/45988861463 | java green (30 + 7 + 40, 2 skipped, no test needed a retry), ui green 25/25, SBM-2's AC4 job green; **SBM-2's AC3 step red**: it lists the 5 code files this card adds or changes |
+
+Not met: "the pipeline on the latest commit passes". The only red step is SBM-2's check that a pull request changes no code, which every code change fails. Changing or removing it changes an existing test (SA-2 says no) and is a person's decision, so the card is parked with one question, default: remove that one step from `.github/workflows/ci.yml` in this card, keeping SBM-2's script in `.github/acceptance/` as its record. The pull request stays a draft until the pipeline is green.
+
+Checkpoint (for the lead who carries on): on the answer, make the change it names in `.github/workflows/ci.yml` (one commit, nothing else), wait for the pipeline on that commit, record it here, mark pull request #7 ready for review (`gh pr ready 7`), and move the card to Ready for review with the Build done comment. If the person chooses to leave it red, record that and do the same.
