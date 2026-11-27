@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.activiti.engine.RuntimeService;
 import org.activiti.engine.TaskService;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
@@ -86,9 +86,8 @@ public class ApprovalRaceAcceptanceTest {
                 StandardCharsets.UTF_8);
     }
 
-    @AfterClass
-    public static void stopProbe() {
-        ProbeRepository.PROBES.shutdownNow();
+    @After
+    public void resetFakes() {
         ProbeInfraConfig.failSpark = false;
     }
 
@@ -246,7 +245,12 @@ public class ApprovalRaceAcceptanceTest {
     /** In-memory status store that records each run's statuses and probes the engine when an actionable one is written. */
     static class ProbeRepository extends InMemorySalesRepository {
 
-        static final ExecutorService PROBES = Executors.newCachedThreadPool();
+        /** Daemon threads, never shut down: the runner may rerun a test after the class has finished. */
+        static final ExecutorService PROBES = Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "sbm5-probe");
+            t.setDaemon(true);
+            return t;
+        });
 
         private final Map<String, List<String>> histories = new ConcurrentHashMap<>();
         private final Map<String, Seen> seen = new ConcurrentHashMap<>();
