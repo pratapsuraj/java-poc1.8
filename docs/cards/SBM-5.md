@@ -177,3 +177,14 @@ Commits: 30f97a1 (`delegate/AfterCommit.java`, the after-commit write with the `
 Not met: "the pipeline on the latest commit passes". The only red step is SBM-2's check that a pull request changes no code, which every code change fails. Changing or removing it changes an existing test (SA-2 says no) and is a person's decision, so the card is parked with one question, default: remove that one step from `.github/workflows/ci.yml` in this card, keeping SBM-2's script in `.github/acceptance/` as its record. The pull request stays a draft until the pipeline is green.
 
 Checkpoint (for the lead who carries on): on the answer, make the change it names in `.github/workflows/ci.yml` (one commit, nothing else), wait for the pipeline on that commit, record it here, mark pull request #7 ready for review (`gh pr ready 7`), and move the card to Ready for review with the Build done comment. If the person chooses to leave it red, record that and do the same.
+
+### Build, continued after SBM-Q7, the card lead, 2026-11-27
+
+The answer (SBM-Q7, a person, 2026-11-27 11:39, default): remove SBM-2's "no code changes" step from the pipeline in this card, keeping its script as SBM-2's record. Done in 78d8ed8: one change, `.github/workflows/ci.yml` loses the step "AC3 no existing source, test or build file changes" (a comment says why); `.github/acceptance/AC3_...sh` stays. Nothing else in the commit.
+
+| Exit criterion | How it holds |
+|---|---|
+| The pipeline on the latest commit passes, the acceptance tests unchanged | Run on 78d8ed8 https://github.com/pratapsuraj/java-poc1.8/actions/runs/45992539751 : all four jobs green; java 30 + 7 + 40 run, 0 failed, 2 skipped (HBase), no `Flakes` line (no test needed a retry); ui 25/25; SBM-2's AC1, AC2 and AC4 green. Log: `.prime/tmp/SBM-5/pipeline-final-java.log`. `git diff --stat 5b9f50c 78d8ed8 -- '*src/test*'` adds only `AfterCommitTest.java`: the acceptance tests are as committed in Test design |
+| The pull request is ready for review | https://github.com/pratapsuraj/java-poc1.8/pull/7 marked ready (`gh pr ready 7`) |
+
+Note: the pipeline still passes `-Dsurefire.rerunFailingTestsCount=2` (SBM-2's decision); removing the retries is the later card the description names. AC3's "without retries" is shown by the AC3 acceptance test, which runs the two existing classes 20 times in-process with no reruns.
