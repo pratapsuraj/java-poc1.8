@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:activiti="http://activiti.org/bpmn"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             targetNamespace="http://example.com/salesbatch">
+
+  <process id="salesBatch" name="Daily Sales Batch">
+
+    <!-- Runs inside the start request, before the first asynchronous step: the run shows up as QUEUED at once. -->
+    <extensionElements>
+      <activiti:executionListener event="start" delegateExpression="${auditStartListener}"/>
+    </extensionElements>
+
+    <startEvent id="start"/>
+    <sequenceFlow id="f1" sourceRef="start" targetRef="ingest"/>
+
+    <!-- async="true": the request returns here; the job executor runs this step (and the next) in the background. -->
+    <serviceTask id="ingest" name="Ingest sales CSV" activiti:async="true" activiti:delegateExpression="${ingestDelegate}"/>
+    <sequenceFlow id="f2" sourceRef="ingest" targetRef="afterIngest"/>
+
+    <!-- A failing step does not throw (that would make the job executor retry it). It sets failed=true and the run ends. -->
+    <exclusiveGateway id="afterIngest" name="Ingest ok?"/>
+    <sequenceFlow id="ingestOk" sourceRef="afterIngest" targetRef="spark">
+      <conditionExpression xsi:type="tFormalExpression">${failed == false}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="ingestFailed" sourceRef="afterIngest" targetRef="endFailed">
+      <conditionExpression xsi:type="tFormalExpression">${failed == true}</conditionExpression>
+    </sequenceFlow>
+
+    <serviceTask id="spark" name="Run Spark job" activiti:async="true" activiti:delegateExpression="${sparkJobDelegate}"/>
+    <sequenceFlow id="f3" sourceRef="spark" targetRef="afterSpark"/>
+
+    <exclusiveGateway id="afterSpark" name="Spark ok?"/>
+    <sequenceFlow id="sparkOk" sourceRef="afterSpark" targetRef="approval">
+      <conditionExpression xsi:type="tFormalExpression">${failed == false}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sparkFailed" sourceRef="afterSpark" targetRef="endFailed">
+      <conditionExpression xsi:type="tFormalExpression">${failed == true}</conditionExpression>
+    </sequenceFlow>
+
+    <userTask id="approval" name="Manager approval" activiti:candidateGroups="managers"/>
+    <sequenceFlow id="f4" sourceRef="approval" targetRef="decision"/>
+
+    <exclusiveGateway id="decision" name="Approved?"/>
+    <sequenceFlow id="yes" sourceRef="decision" targetRef="publish">
+      <conditionExpression xsi:type="tFormalExpression">${approved == true}</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="no" sourceRef="decision" targetRef="reject">
+      <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
+    </sequenceFlow>
+
+    <serviceTask id="publish" name="Publish report" activiti:delegateExpression="${publishDelegate}"/>
+    <sequenceFlow id="f5" sourceRef="publish" targetRef="endCompleted"/>
+    <endEvent id="endCompleted"/>
+
+    <serviceTask id="reject" name="Mark rejected" activiti:delegateExpression="${rejectDelegate}"/>
+    <sequenceFlow id="f6" sourceRef="reject" targetRef="endRejected"/>
+    <endEvent id="endRejected"/>
+
+    <endEvent id="endFailed"/>
+
+  </process>
+</definitions>

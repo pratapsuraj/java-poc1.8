@@ -1,0 +1,122 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sales Batch API",
+    "version": "1.0.0",
+    "description": "Loads a sales CSV into HBase, runs the Spark aggregation, waits for a manager approval, then publishes report-<businessDate>.csv. Typical order: 1) POST /batches, 2) GET /batches/{id}, 3) POST /batches/{id}/approve."
+  },
+  "paths": {
+    "/batches": {
+      "post": {
+        "summary": "Start a batch run",
+        "description": "Starts a run and returns at once with status QUEUED. Ingest and the Spark job run in the background (QUEUED, RUNNING). Poll GET /batches/{id} until the run is WAITING_APPROVAL (or FAILED, with an error message), then approve it.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StartRequest" },
+              "example": { "csvPath": "/work/sample-data/sales-20261113.csv", "businessDate": "20261113" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted: the run continues in the background. Poll GET /batches/{id} until WAITING_APPROVAL or FAILED.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchStatus" } } }
+          },
+          "400": { "description": "Invalid businessDate or empty csvPath. A bad CSV is not rejected here: the run ends FAILED with an error message.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/batches/upload": {
+      "post": {
+        "summary": "Upload a CSV and start a batch run",
+        "description": "Same as POST /batches, but the CSV is sent as a file instead of a server path.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "businessDate"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "businessDate": { "type": "string", "example": "20261113" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Accepted: the run continues in the background. Poll GET /batches/{id} until WAITING_APPROVAL or FAILED.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchStatus" } } } },
+          "400": { "description": "Invalid businessDate or empty file. A bad CSV is not rejected here: the run ends FAILED with an error message.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/data/raw": {
+      "get": {
+        "summary": "Uploaded rows read from HBase (sales_raw)",
+        "parameters": [ { "name": "date", "in": "query", "required": true, "schema": { "type": "string", "example": "20261113" } } ],
+        "responses": { "200": { "description": "Rows of that business date" }, "400": { "description": "date must be yyyyMMdd" } }
+      }
+    },
+    "/data/agg": {
+      "get": {
+        "summary": "Spark aggregates read from HBase (sales_agg)",
+        "parameters": [ { "name": "date", "in": "query", "required": true, "schema": { "type": "string", "example": "20261113" } } ],
+        "responses": { "200": { "description": "Aggregates of that business date" }, "400": { "description": "date must be yyyyMMdd" } }
+      }
+    },
+    "/batches/{id}": {
+      "get": {
+        "summary": "Get the status of a run",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "processInstanceId returned by POST /batches" }
+        ],
+        "responses": {
+          "200": { "description": "Current status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchStatus" } } } },
+          "404": { "description": "Unknown run" }
+        }
+      }
+    },
+    "/batches/{id}/approve": {
+      "post": {
+        "summary": "Approve or reject a run",
+        "description": "approved=true publishes the report (COMPLETED); approved=false publishes nothing (REJECTED).",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "approved", "in": "query", "required": false, "schema": { "type": "boolean", "default": true } },
+          { "name": "approver", "in": "query", "required": false, "schema": { "type": "string", "default": "unknown" } }
+        ],
+        "responses": {
+          "200": { "description": "Decision recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchStatus" } } } },
+          "409": { "description": "Unknown run or already decided", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StartRequest": {
+        "type": "object",
+        "required": ["csvPath", "businessDate"],
+        "properties": {
+          "csvPath": { "type": "string", "description": "Path of the CSV as seen by the app. In the Docker setup the project folder is /work." },
+          "businessDate": { "type": "string", "pattern": "^\\d{8}$", "description": "yyyyMMdd" }
+        }
+      },
+      "BatchStatus": {
+        "type": "object",
+        "properties": {
+          "processInstanceId": { "type": "string" },
+          "status": { "type": "string", "enum": ["QUEUED", "RUNNING", "WAITING_APPROVAL", "COMPLETED", "REJECTED", "FAILED"] },
+          "error": { "type": "string", "description": "Only when status is FAILED: why the run failed (for example a bad CSV line or the Spark exit code)" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": { "error": { "type": "string" } }
+      }
+    }
+  }
+}

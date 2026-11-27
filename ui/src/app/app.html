@@ -1,0 +1,81 @@
+<main>
+  <h1>Sales Batch</h1>
+
+  <section>
+    <h2>1. Upload CSV</h2>
+    <label>CSV file <input type="file" accept=".csv" (change)="onFile($event)"></label>
+    <label>Business date (yyyyMMdd) <input [(ngModel)]="businessDate" maxlength="8"></label>
+    <button (click)="upload()" [disabled]="busy()">Upload &amp; start</button>
+    @if (busy()) {
+      <p class="note">Sending... If this does not finish within a few seconds, the Java app is not running, is paused
+        at a breakpoint, or another old session holds port 8081 (check http://localhost:8081/).</p>
+    }
+  </section>
+
+  @if (error()) { <p class="error">{{ error() }}</p> }
+
+  @if (batch(); as b) {
+    <section>
+      <h2>2. Status</h2>
+      <p>Run <strong>{{ b.processInstanceId }}</strong>:
+        <span class="badge {{ b.status }}">{{ b.status }}</span></p>
+      @if (isActive(b.status)) {
+        <p class="note">Working in the background (ingest, then the Spark job). This page checks every 2 seconds.</p>
+      }
+      @if (b.error) { <p class="error">Run failed: {{ b.error }}</p> }
+      <button (click)="refresh()" [disabled]="busy()">Refresh</button>
+    </section>
+
+    <section>
+      <h2>3. Approval</h2>
+      <label>Approver <input [(ngModel)]="approver"></label>
+      <button (click)="decide(true)" [disabled]="busy() || b.status !== 'WAITING_APPROVAL'">Approve</button>
+      <button (click)="decide(false)" [disabled]="busy() || b.status !== 'WAITING_APPROVAL'">Reject</button>
+    </section>
+  }
+
+  <section>
+    <h2>Data in HBase for {{ businessDate }}</h2>
+    <button (click)="loadData()">Load from HBase</button>
+    <span class="note">(also refreshes after every action above)</span>
+
+    @if (dataLoaded()) {
+      <h3>Uploaded rows (sales_raw): {{ rawRows().length }}</h3>
+      @if (rawRows().length) {
+        <table>
+          <thead><tr><th>Order</th><th>Product</th><th>Region</th><th>Qty</th><th>Amount</th></tr></thead>
+          <tbody>
+            @for (r of rawRows(); track r.orderId) {
+              <tr><td>{{ r.orderId }}</td><td>{{ r.productId }}</td><td>{{ r.region }}</td>
+                  <td class="num">{{ r.qty }}</td><td class="num">{{ r.amount.toFixed(2) }}</td></tr>
+            }
+          </tbody>
+        </table>
+      } @else { <p class="note">No rows for this date.</p> }
+
+      <h3>Aggregated by Spark (sales_agg): {{ aggRows().length }}</h3>
+      @if (aggRows().length) {
+        <table>
+          <thead><tr><th>Region</th><th>Product</th><th>Total qty</th><th>Total amount</th><th>Orders</th></tr></thead>
+          <tbody>
+            @for (a of aggRows(); track a.region + a.productId) {
+              <tr><td>{{ a.region }}</td><td>{{ a.productId }}</td><td class="num">{{ a.totalQty }}</td>
+                  <td class="num">{{ a.totalAmount.toFixed(2) }}</td><td class="num">{{ a.orderCount }}</td></tr>
+            }
+          </tbody>
+        </table>
+      } @else { <p class="note">No aggregates yet: the Spark job has not run for this date.</p> }
+    }
+  </section>
+
+  @if (history().length) {
+    <section>
+      <h2>History</h2>
+      <ul>
+        @for (h of history(); track $index) {
+          <li>Run {{ h.processInstanceId }} &ndash; {{ h.status }}</li>
+        }
+      </ul>
+    </section>
+  }
+</main>

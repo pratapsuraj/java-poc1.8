@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!-- HBase client settings for the spark-job tests: a local HBase, and fail fast if it is not healthy. -->
+<configuration>
+  <property><name>hbase.zookeeper.quorum</name><value>localhost</value></property>
+  <property><name>hbase.zookeeper.property.clientPort</name><value>2181</value></property>
+  <property><name>hbase.client.retries.number</name><value>3</value></property>
+  <property><name>hbase.client.pause</name><value>200</value></property>
+  <property><name>zookeeper.recovery.retry</name><value>1</value></property>
+</configuration>

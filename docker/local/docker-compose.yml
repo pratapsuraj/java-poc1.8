@@ -1,0 +1,53 @@
+# Local stack for debugging: HBase + a small Spark standalone cluster (1 master, 2 workers).
+# Start: docker compose -f docker/local/docker-compose.yml up -d     Stop: ... down
+# Needs the image built once:  docker build -t salesbatch-runtime docker
+# Postgres is not part of this file: the workflow database lives in your existing "postgres" container.
+name: salesbatch-local
+
+x-spark: &spark
+  image: salesbatch-runtime
+  volumes:
+    - ../..:/work                                           # project folder: the Spark jar is read from here
+    - ./spark-hbase-site.xml:/opt/spark/conf/hbase-site.xml:ro
+
+services:
+  hbase:
+    image: harisekhon/hbase:1.4
+    container_name: sales-hbase
+    entrypoint: ["sh", "/tmp/start-hbase.sh"]
+    volumes:
+      - ./hbase-server-site.xml:/tmp/site.xml:ro
+      - ./start-hbase.sh:/tmp/start-hbase.sh:ro
+    ports:
+      - "2181:2181"     # ZooKeeper
+      - "16000:16000"   # HBase master
+      - "16020:16020"   # HBase region server
+      - "16011:16010"   # HBase web UI
+
+  spark-master:
+    <<: *spark
+    container_name: spark-master
+    hostname: spark-master
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark-master", "--port", "7077", "--webui-port", "8080"]
+    ports:
+      - "8090:8080"     # Spark master web UI
+      - "7077:7077"
+      - "5006:5006"     # JDWP of the Spark driver (client mode runs it in this container)
+
+  spark-worker-1:
+    <<: *spark
+    container_name: spark-worker-1
+    hostname: spark-worker-1
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077", "--cores", "2", "--memory", "1g", "--webui-port", "8081"]
+    depends_on: [spark-master]
+    ports:
+      - "8091:8081"
+
+  spark-worker-2:
+    <<: *spark
+    container_name: spark-worker-2
+    hostname: spark-worker-2
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "spark://spark-master:7077", "--cores", "2", "--memory", "1g", "--webui-port", "8081"]
+    depends_on: [spark-master]
+    ports:
+      - "8092:8081"
