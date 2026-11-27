@@ -88,8 +88,72 @@ Decisions taken by the card lead: worked on a separate worktree of the repositor
 
 Asked SBM-Q10 (criteria, three items with defaults: log output intended; strip log4j from the Spark job jar and record the ZooKeeper critical as not reachable; criteria AC1 to AC4). The card waits in Plan on that answer.
 
-### Checkpoint
+### Checkpoint (superseded below)
 
 - Learned: see Assess. The working fix is trial 2 (exclusions in `common`, `log4j-over-slf4j` in `workflow-app` only); a bridge that reaches spark-job breaks its tests.
 - Open: the answer to SBM-Q10. Then copy the criteria word for word onto the card's description, write the design and roadmap here, and have a fresh helper read it.
 - Next step: a fresh lead reads SBM-Q10's answer and carries on with Plan step 2.
+
+### Plan exit criteria
+
+| Criterion | How it holds |
+|---|---|
+| Numbered criteria written by a person are on the card | AC1 to AC4 from the person's answer to SBM-Q10, copied word for word onto the card's description. |
+| The design and roadmap are committed on the card's branch | Sections "Design" and "Roadmap" below, on `card/SBM-7`. |
+| A helper with fresh context read the design, every finding resolved or answered | Gap: no fresh-context helper could be started here (see "Design review"); the card lead's own review, five findings, each resolved or answered, backed by trial 3. |
+
+### Answer and criteria (SBM-Q10, answered by a person 2026-11-27 12:38, all defaults)
+
+1. Log output: intended. Errors become visible; hiding them keeps today's silence.
+2. Scope: yes to both. Strip log4j from the Spark job's jar; record the ZooKeeper critical as not reachable (a ZooKeeper bump would break the EMR pin).
+3. Criteria, as written (copied word for word onto the card's description):
+   - AC1 workflow-app jar has no log4j 1.2 classes.
+   - AC2 Spark job jar has no log4j 1.2 classes.
+   - AC3 workflow-app log lines reach the console.
+   - AC4 existing tests unchanged and pass, new tests pass, Java 8 and EMR 5.36 versions unchanged.
+
+### Design
+
+Build files only; no Java or Scala source changes (none uses `org.apache.log4j`).
+
+- **workflow-app (AC1, AC3).** In `common/pom.xml`, add exclusions `log4j:log4j` and `org.slf4j:slf4j-log4j12` to `hbase-client`. In `workflow-app/pom.xml`, add `org.slf4j:log4j-over-slf4j:${slf4j.version}` (compile). Result: HBase and ZooKeeper code that calls `org.apache.log4j.*` lands on the bridge, the only SLF4J binding left is `logback-classic`, and `workflow-app/src/main/resources/logback.xml` takes effect. The bridge goes in workflow-app only: in `common` it reaches spark-job, where Spark's own `slf4j-log4j12` makes SLF4J refuse to start (Assess trial 1).
+- **spark-job (AC2).** In `spark-job/pom.xml`'s shade configuration, add `<artifactSet><excludes>` for `log4j:log4j` and `org.slf4j:slf4j-log4j12`. The shade filter keeps them out of the jar whatever path brings them in (`hbase-server` compile, `common`), while the test classpath keeps them through `spark-core` (provided), which is what the EMR cluster supplies at runtime. Chosen over dependency exclusions on `hbase-server` because it does not change the test classpath and does not depend on Maven's nearest-wins scope resolution.
+- **ZooKeeper critical.** No change: ZooKeeper 3.4.x stays in both jars (the HBase client needs it). Recorded as not reachable (server-side SASL quorum auth; no 3.4.x fix; a bump breaks the EMR pin), per item 2. Build writes this into the card file's Build section with the advisory id from the osv report.
+- **Versions (AC4).** No change to `java.version`, `spark.version`, `hbase.version`, `hadoop.version`, `scala.version` in the root `pom.xml`. `log4j-over-slf4j` takes the existing `slf4j.version` (1.7.30), so it matches `slf4j-api`.
+
+What the acceptance tests should check (for Test design; the tests are theirs to write):
+
+- AC1, AC2: after `mvn -B package -DskipTests`, list each shaded jar and fail on log4j 1.2's own entries: `META-INF/maven/log4j/log4j/`, `org/apache/log4j/net/`, `org/apache/log4j/jdbc/`, `org/apache/log4j/chainsaw/`, `org/apache/log4j/PropertyConfigurator.class`, and `slf4j-log4j12`'s `org/slf4j/impl/Log4jLoggerFactory.class` / `META-INF/maven/org.slf4j/slf4j-log4j12/`. Do not ban `org/apache/log4j/` as a whole: the bridge's `org/apache/log4j/Logger.class` and `org/apache/log4j/Log4jLoggerFactory.class` are expected in workflow-app.jar. A stronger form: every `org/apache/log4j/` entry in workflow-app.jar must also be in the `log4j-over-slf4j` jar from the local Maven repository.
+- AC3: start `WorkflowServer` from `workflow-app/target/workflow-app.jar` (or log through SLF4J in a process using the shaded jar's classpath), capture stdout, and look for a known log line in `logback.xml`'s pattern; also fail on "log4j:WARN No appenders".
+- AC4: the pipeline's `java` job (existing tests, unchanged) plus a check that the five version properties in the root `pom.xml` equal today's values.
+
+### Roadmap
+
+Each step leaves `main`'s tests passing (Assess trial 2 is steps 1 and 2 together).
+
+1. `common/pom.xml` exclusions and `workflow-app/pom.xml` bridge, in one commit: separately, the exclusions alone would leave HBase's log4j calls with no classes (`NoClassDefFoundError` at runtime). Run the full test command; expect 65 pass, 2 skipped.
+2. `spark-job/pom.xml` shade `artifactSet` excludes. Run the full test command and `mvn -B package -DskipTests`; list `spark-job` jar.
+3. Evidence: acceptance tests green; side-by-side start of `WorkflowServer` from main's jar and the branch's jar (the gap Assess left), expecting only difference group 1; ZooKeeper not-reachable record; pipeline run linked.
+
+### Trial 3 (the whole design on the scratch copy, not on the branch)
+
+Scratch worktree `<programme>/.prime/tmp/SBM-7/trial` (trial 2 plus spark-job's shade `artifactSet` excludes). `mvn -B clean package -Dsurefire.runOrder=alphabetical`: BUILD SUCCESS; common 30/30, spark-job 7 run 5 pass 2 skipped, workflow-app 30/30, so 65 pass, 2 skipped, 0 fail as at baseline. Shade log: "Excluding log4j:log4j:jar:1.2.17" and "Excluding org.slf4j:slf4j-log4j12:jar:1.7.16 from the shaded jar". spark-job jar: no `org/apache/log4j/` entry at all, no `META-INF/maven/log4j/`. workflow-app.jar: no `net/`, `jdbc/`, `chainsaw/`, no `META-INF/maven/log4j/`; `org/apache/log4j/Log4jLoggerFactory.class` (the bridge's, 2019) and logback's `org/slf4j/impl/StaticLoggerBinder.class` (2017). Logs: `trial3-package.log`, `jar-trial3-spark.txt`, `jar-trial3-workflow.txt` in the scratch folder.
+
+### Design review
+
+Exit criterion "a helper with fresh context read the design" could not be met in this session: no subagent tool is available to the card lead here, and starting a separate `claude -p` helper needs a person's approval. Recorded as a gap outside the card. In its place the card lead reread the design against the poms and ran trial 3; findings and how each is resolved:
+
+1. AC1/AC2 test wording could ban the bridge's own `org/apache/log4j/` classes and so fail a correct build. Resolved: the acceptance-check list now names log4j 1.2's own entries, and the definition is a recorded decision.
+2. The design's first marker was `org/slf4j/impl/Log4jLoggerFactory`; the bridge ships `org/apache/log4j/Log4jLoggerFactory`, a different path. Resolved: both named, so the test cannot confuse them.
+3. Untested shade `artifactSet` route for spark-job. Resolved by trial 3 (tests unchanged and green, jar clean).
+4. Runtime on EMR: the spark-job jar's HBase classes that call log4j now rely on the cluster's log4j 1.2.17 on Spark's classpath. Answered: that is what the person chose in item 2 ("the cluster supplies its own"); the job cannot be run on EMR from here, so Verify notes it as not proven on a cluster.
+5. The pipeline's SBM-2 no-build-file-changes check will fail on this card. Answered: see the pipeline dependency decision below.
+
+The next lead (Test design or a reviewer) may still run a fresh-context read; nothing in Test design depends on it.
+
+### Decisions taken by the card lead in Plan
+
+- Shade `artifactSet` excludes for spark-job rather than dependency exclusions: see Design.
+- No OpenRewrite or other recipe: the change is three small pom edits, which a recipe would not shorten.
+- Defined "log4j 1.2 classes" (AC1, AC2) as classes that come from the `log4j:log4j` artifact. The bridge `log4j-over-slf4j` also puts classes under `org/apache/log4j/` (for example `Logger`, `Log4jLoggerFactory`); they are SLF4J's, not log4j 1.2's, and carry none of the vulnerable code. This reading follows the person's item 2 answer and Assess's trial 2, which the person saw. A test that bans all of `org/apache/log4j/` would contradict AC3's design.
+- Pipeline dependency: `main`'s pipeline still runs SBM-2's check that no existing build file changes (`AC3_no_existing_source_test_or_build_file_changes.sh`), which this card's pom edits will fail. SBM-6's branch removes that check. Build rebases `card/SBM-7` on `main` once SBM-6 is merged; if it is not merged by then, Build records the failing check as caused outside the card rather than editing SBM-2's check here.
