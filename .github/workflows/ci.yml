@@ -82,9 +82,8 @@ jobs:
       - name: AC2 fails when a Java or UI test fails
         if: always()
         run: bash .github/acceptance/AC2_fails_when_a_java_or_ui_test_fails.sh
-      - name: AC3 no existing source, test or build file changes
-        if: always()
-        run: bash .github/acceptance/AC3_no_existing_source_test_or_build_file_changes.sh origin/${{ github.base_ref || 'main' }}
+      # SBM-2's AC3 (no existing file changes) held for SBM-2's own pull request only; removed by card SBM-6
+      # (answer to SBM-Q9), since every later card changes code or tests.
 
   ac4:
     needs: [java, ui]
