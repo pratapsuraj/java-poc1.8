@@ -83,3 +83,13 @@ Standing answers that apply: SA-2 (existing tests stay unchanged and must pass),
 Outside the card: the EMR 5.36 cluster itself runs log4j 1.2.17 for Spark and HBase; this card cannot change that under the pins. Raised as a risk comment on the card.
 
 Decisions taken by the card lead: worked on a separate worktree of the repository (`<programme>/.prime/tmp/SBM-7/wt`, branch `card/SBM-7`) so the person's working copy stays on `card/SBM-6`.
+
+## Plan, the card lead, 2026-11-27
+
+Asked SBM-Q10 (criteria, three items with defaults: log output intended; strip log4j from the Spark job jar and record the ZooKeeper critical as not reachable; criteria AC1 to AC4). The card waits in Plan on that answer.
+
+### Checkpoint
+
+- Learned: see Assess. The working fix is trial 2 (exclusions in `common`, `log4j-over-slf4j` in `workflow-app` only); a bridge that reaches spark-job breaks its tests.
+- Open: the answer to SBM-Q10. Then copy the criteria word for word onto the card's description, write the design and roadmap here, and have a fresh helper read it.
+- Next step: a fresh lead reads SBM-Q10's answer and carries on with Plan step 2.
