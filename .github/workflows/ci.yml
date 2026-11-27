@@ -1,0 +1,106 @@
+name: ci
+
+# Card SBM-2: run the Java and UI tests on every pull request and on every push to main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  java:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+      # A failed test is retried up to 2 times (card SBM-2, decision 2a): one existing class is
+      # flaky (risk SBM-3). A test that fails all three times still fails the build.
+      # Test classes run in alphabetical order, as on the developers' machines: in workflow-app the
+      # first class to start the shared Spring context fixes report.dir, and WebConfigTest (first in
+      # Linux's file order) sets none, so SalesBatchProcessTest then looks in the wrong folder.
+      - name: Java tests
+        run: mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=alphabetical
+      - name: Keep the test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-test-reports
+          path: '**/target/surefire-reports/TEST-*.xml'
+          if-no-files-found: warn
+
+  ui:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: UI tests
+        run: |
+          set -o pipefail
+          mkdir -p ../reports/ui
+          npx ng test --watch=false --browsers=ChromeHeadless 2>&1 | tee ../reports/ui/ui-test.log
+      - name: Keep the test log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-test-log
+          path: reports/ui/ui-test.log
+          if-no-files-found: warn
+
+  acceptance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: AC1 pull request or push to main starts the Java and UI tests
+        if: always()
+        run: bash .github/acceptance/AC1_pull_request_or_push_to_main_starts_java_and_ui_tests.sh
+      - name: AC2 fails when a Java or UI test fails
+        if: always()
+        run: bash .github/acceptance/AC2_fails_when_a_java_or_ui_test_fails.sh
+      - name: AC3 no existing source, test or build file changes
+        if: always()
+        run: bash .github/acceptance/AC3_no_existing_source_test_or_build_file_changes.sh origin/${{ github.base_ref || 'main' }}
+
+  ac4:
+    needs: [java, ui]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          name: java-test-reports
+          path: reports/java
+      - uses: actions/download-artifact@v8
+        with:
+          name: ui-test-log
+          path: reports/ui
+      - name: AC4 passes, running every existing test
+        run: bash .github/acceptance/AC4_passes_running_every_existing_test.sh reports/java reports/ui/ui-test.log origin/main
