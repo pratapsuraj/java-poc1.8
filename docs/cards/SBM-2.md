@@ -141,3 +141,25 @@ Sensitivity checks Build must run:
 - AC4: on the green run, the check's output counts (16 classes, Java totals, UI total) go here.
 
 Decision (SA-3): `actions/checkout@v4` warns that Node 20 is deprecated on the runners, so Build uses the v5 majors of `checkout`, `setup-java` and `setup-node`.
+
+## Build, the card lead, 2026-11-27
+
+`.github/workflows/ci.yml` now has the `java` and `ui` jobs beside the acceptance jobs. The acceptance checks in `.github/acceptance/` are unchanged since 2cb5b86 (`git diff 2cb5b86 HEAD -- .github/acceptance` is empty).
+
+### What happened on the way
+
+- First build run (65906a8, https://github.com/pratapsuraj/java-poc1.8/actions/runs/45970170956): red. `SalesBatchProcessTest.approvedBatchIsPublished` failed all 3 tries with `NoSuchFileException: /tmp/sales-batch-test-reports/report-20261113.csv`. Not the known race: on Linux, surefire's file order ran `WebConfigTest` first; it starts `workflow-app`'s shared Spring context without setting `report.dir`, so the context wrote reports to `/tmp/sales-batch-reports` and later classes looked in the wrong folder. On Windows (the baseline) the order was alphabetical and `BatchControllerTest` set it first.
+- Decision (SA-3, an option of the tool; tests unchanged per SA-2 and AC3): `-Dsurefire.runOrder=alphabetical`, the baseline's order. The order dependence itself stays in the tests; raised as a risk on the card.
+- `upload-artifact` and `download-artifact` moved to v7 and v8, the majors that run on Node 24, after the runners warned v5 targets the deprecated Node 20.
+
+### Evidence per criterion
+
+| Criterion | Result |
+|---|---|
+| AC1 | Pull request run starts `java`, `ui`, `acceptance`, `ac4`; AC1 check 7 of 7 ok. |
+| AC2 | AC2 check 4 of 4 ok. Sensitivity: scratch pull request https://github.com/pratapsuraj/java-poc1.8/pull/6 (base: the card's branch, closed unmerged, branch deleted), run https://github.com/pratapsuraj/java-poc1.8/actions/runs/45970587387: `java` red (`Ac2SensitivityTest` failed runs 1, 2 and 3), `ui` red (`Executed 26 of 26 (1 FAILED)`). |
+| AC3 | AC3 check ok on the pull request. Sensitivity: in a scratch clone, one line added to `pom.xml` and committed; the check printed `FAIL AC3 existing file changed (M): pom.xml` and exited 1. The scratch pull request's run also failed AC3 on its two new test files. |
+| AC4 | Run https://github.com/pratapsuraj/java-poc1.8/actions/runs/45970557374 (aee05c3), green: 16 existing test classes all reported; Java 67 run, 0 failed, 0 errors, 2 skipped (the HBase ones); per module 30/0/0, 7/0/2, 30/0/0, the baseline's counts with the flaky class passing; UI `TOTAL: 25 SUCCESS`. |
+
+Logs beside the scratch folder: `build-run1-failed.log`, `build-run2.log`, `sens-ac2-run.log` in `.prime/tmp/SBM-2/`.
+The pipeline on the latest commit is read after the push below; its link is in the done comment.
