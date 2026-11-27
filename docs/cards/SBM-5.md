@@ -77,3 +77,12 @@ Standing answers read: `.prime/answers.yaml` (SA-2: existing tests stay unchange
 - Application folder and test command on the card: change map above, summarised in the done comment.
 - Tests passing before the change: Java 63 of 67 locally with no retries (2 race failures, 2 HBase skips); the pipeline on `main` 65 of 67 with retries; UI 25 of 25.
 - One slice: yes.
+
+## Plan, the card lead, 2026-11-27
+
+Criteria are a person's act, so Plan asked once on Relay (kind criteria) before designing, with three items and defaults:
+1. Criteria, default as drafted in Assess ("For Plan"), with AC3 worded so no count depends on new tests: "the existing tests are unchanged and pass in 20 runs in a row with no retries, and the new tests pass".
+2. Categories for the two known differences (approve no longer gets `409`; at `FAILED` the run has ended): default intended.
+3. If writing a status fails after the engine has committed: default retry the write up to 3 times, then log an error and leave the last status (the run itself is unaffected); the alternative, writing before commit as today, keeps the race.
+
+The card waits on the person; Relay released the claim. Next step: on the answer, copy the criteria onto the card word for word; design (status written in a transaction listener on commit, `Context.getCommandContext().getTransactionContext().addTransactionListener(TransactionState.COMMITTED, ...)` in Activiti 5.22) and roadmap here; a fresh helper reads them.
