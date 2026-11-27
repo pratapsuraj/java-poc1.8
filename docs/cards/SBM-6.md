@@ -166,3 +166,51 @@ Run 45995634424 on d13a17e (https://github.com/pratapsuraj/java-poc1.8/actions/r
 
 - Next: Build per the roadmap (steps 6 to 9), after the person answers the question on SBM-2's acceptance check; then the sensitivity checks above.
 - Fresh-context review of the design (Plan's gap) still open: have one read "Design" and "Design review" before building, if a helper can be started.
+
+## Build, the card lead, 2026-11-27
+
+Answers acted on: SBM-Q9 (a person, 12:38, default): SBM-2's no-existing-file-changes check removed in its own commit.
+
+### Commits
+
+- 19e585f: `ci.yml` drops the `AC3 no existing source, test or build file changes` step and the script `.github/acceptance/AC3_no_existing_source_test_or_build_file_changes.sh` is deleted. SBM-2's AC1, AC2 and AC4 checks stay as they were.
+- de9f5f2: the fix, as designed in Plan.
+  - `TestInfraConfig`: beans `testReportDir` (`Files.createTempDirectory("sales-batch-test-reports")`, so under `java.io.tmpdir` and new per context), `testReportDirCleanup` (deletes it when the context closes) and `publishDelegate` (replaces the scanned production bean; Spring 4.3.30 overrides a scanned definition with a `@Bean` one). Helper `emptyFolder`.
+  - `SalesBatchProcessTest`: the static `reportDir` and its `@BeforeClass` replaced by `@Autowired Path reportDir` plus a `@Before` that empties it. `BatchControllerTest`, `BatchControllerUploadTest`: `@BeforeClass` setting `report.dir` removed. `WorkflowServerTest`: the `report.dir` line in `@Before` removed. Unused imports removed. No test method changed (AC4 passes; `git diff d13a17e HEAD` on the four classes touches only fields, set-up methods and imports).
+  - `ci.yml`: `-Dsurefire.runOrder=alphabetical` becomes `-Dsurefire.runOrder=random`, retries kept at 2.
+- No production code changed. Acceptance tests and their resource unchanged since d13a17e (`git diff --stat d13a17e HEAD -- RunOrderAcceptanceTest.java src/test/resources` empty).
+
+### Evidence
+
+| Criterion | Test | Local | Pipeline run 46002534491 on de9f5f2 |
+|---|---|---|---|
+| AC1 | `AC1_javaTestsPassInReverseAlphabeticalOrderFromAFreshTempFolder` | pass | pass |
+| AC2 | `AC2_javaTestsPassInRandomOrderForThreeSeedsFromFreshTempFolders` | pass (failed before the fix, seed 7) | pass |
+| AC3 | `AC3_pipelineRunsTheJavaTestsInNoFixedOrder` | pass (failed before) | pass; the run itself used `runOrder=random` and passed |
+| AC4 | `AC4_existingTestStepsAndAssertionsAreUnchanged` | pass | pass; the 67 existing tests pass (65, 2 HBase skipped) |
+
+Pipeline: https://github.com/pratapsuraj/java-poc1.8/actions/runs/46002534491, all four jobs green (`java`, `ui`, `acceptance`, `ac4`). Java totals: `common` 30/0/0, `spark-job` 7/0/2 skipped, `workflow-app` 34/0/0 (30 existing + 4 acceptance), no flakes. Log: `.prime/tmp/SBM-6/pipeline-46002534491-java.log`.
+
+Local (scratch `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-6\`, script `build-runs.sh`):
+- Targeted `WebConfigTest,SalesBatchProcessTest`, reverse alphabetical, fresh `java.io.tmpdir` (the order that failed in Assess): passes; one flake at `SalesBatchProcessTest:71` (task count 0, retried and passed), which is the approval race of card SBM-5, not the report folder (`build-targeted*.log`).
+- Full `mvn -B clean test` with random order and retries, fresh `java.io.tmpdir`: 71 run, 0 failed, 2 skipped, BUILD SUCCESS (`build-full.log`). No `sales-batch-test-reports*` folder left behind in the temp folder afterwards (cleanup works); the existing tests' input CSVs remain, as before.
+- Acceptance class alone: 4 of 4 pass, about 170 s (`build-accept.log`). In the pipeline it took 106 s.
+
+### Sensitivity checks (`sensitivity.sh`, scratch worktree of de9f5f2, `sensitivity-summary.txt`)
+
+1. Fix reverted (the five test classes as at d13a17e): AC2 fails, seed 7, the same order as before the fix.
+2. One assertion in `SalesBatchProcessTest.approvedBatchIsPublished` changed (`report.size()` 3 to 4): AC4 fails naming that method.
+3. `runOrder=alphabetical` put back in `ci.yml`: AC3 fails.
+
+AC1 passes before and after the fix (explained in Test design); its guard is the same as AC2's, which check 1 shows is noticed.
+
+### Side effects and decisions
+
+- `LocalDebugServer` with `-Ddebug.inmemory=true` uses `TestInfraConfig`, so its reports now go to the context's temp folder (the path is logged by `PublishDelegate`) and are deleted when it stops, instead of `./reports`. It is a developer helper under `src/test`, not a test; left as it is.
+- Mutation testing: the project has none set up; not run.
+- Design review by a fresh-context helper (Plan's gap): still not done; this session has no way to start a subagent. The design's risky claim (the bean override takes effect) is confirmed by the passing targeted run and by sensitivity check 1.
+
+### Exit criteria
+
+- The pipeline on the latest commit passes, the acceptance tests unchanged: run 46002534491 on de9f5f2 green; this card-file commit is docs-only and its run is linked on the card's done comment.
+- The pull request is ready for review: PR #8 marked ready.
