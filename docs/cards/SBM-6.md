@@ -123,3 +123,46 @@ Gap: this session could not start a helper with fresh context (no subagent tool 
 5. **AC1 and AC2 can fail before the fix.** Without the fix the child JVM, given a fresh `java.io.tmpdir`, writes the report to `report.dir`'s default `/tmp/sales-batch-reports` whenever `WebConfigTest` or `DataControllerTest` builds the context first, and `approvedBatchIsPublished` then fails with `NoSuchFileException`, as Assess reproduced. Reverse alphabetical puts `WebConfigTest` before `SalesBatchProcessTest`.
 6. **Run time.** AC1 and AC2 run the `workflow-app` suite four more times in the pipeline (about 4 x 30 s by Assess's logs). Accepted; noted for Build to measure.
 7. **AC4 fingerprint.** Normalise each `@Test` method body (strip whitespace and comments) before hashing, so a line-ending change on Windows does not fail it; the recorded list comes from `git show 5a91d26:<file>`, written once in Test design.
+
+## Test design, the card lead, 2026-11-27
+
+Acceptance tests in `workflow-app/src/test/java/com/example/salesbatch/workflow/RunOrderAcceptanceTest.java`, commit d13a17e, before any build. Draft pull request: https://github.com/pratapsuraj/java-poc1.8/pull/8 (linked on the card).
+
+| Criterion | Test | Before the fix (local, `mvn -B -pl workflow-app test -Dtest=RunOrderAcceptanceTest`) |
+|---|---|---|
+| AC1 | `AC1_javaTestsPassInReverseAlphabeticalOrderFromAFreshTempFolder` | passes (kept behaviour, see below) |
+| AC2 | `AC2_javaTestsPassInRandomOrderForThreeSeedsFromFreshTempFolders` | **fails**: seed 7, `SalesBatchProcessTest.approvedBatchIsPublished`, `NoSuchFileException ...\sales-batch-test-reports\report-20261113.csv` (the SBM-4 failure) |
+| AC3 | `AC3_pipelineRunsTheJavaTestsInNoFixedOrder` | **fails**: `ci.yml` still has `-Dsurefire.runOrder=alphabetical` |
+| AC4 | `AC4_existingTestStepsAndAssertionsAreUnchanged` | passes (kept behaviour) |
+
+Log: `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-6\td-before-fix.log`. AC3's other half is observed, not tested: the pipeline on the Build commit passes with the random order.
+
+How they work:
+- AC1 and AC2 start a child JVM (`RunOrderAcceptanceTest.Child`) on the test classpath (Surefire's `surefire.test.class.path`, passed through a manifest-only jar for Windows) with `java.io.tmpdir` set to a new empty folder under `workflow-app/target/sbm6-run-order/`, and run every `workflow-app` class with a `@Test` method, except the acceptance class, in the chosen order. A failed test is retried up to 2 times in the same JVM, as the pipeline does for the approval race (SBM-5); an order failure fails every try because the cached context does not change. Each child's log stays in its folder.
+- AC2's seeds are 7, 12 and 19 (`Collections.shuffle(sorted classes, new Random(seed))`). Chosen because each puts `DataControllerTest` (7, 12) or `WebConfigTest` (19) first among the Spring classes, the orders that fail today; seeds 1 to 3 all happen to pass today, so they would not tell the difference. Orders computed with `seeds.py` in the scratch folder and checked against the child's own log for seed 2.
+- AC1 passes before the fix: in reverse alphabetical order `WorkflowServerTest` runs before any other Spring class and sets `report.dir`, so the cached context is built right. AC1 is kept behaviour, and its sensitivity comes through AC2.
+- AC4: `src/test/resources/acceptance/SBM-6-existing-test-methods.txt` holds a SHA-256 for each of the 67 existing `@Test` methods (Java and Scala, all three modules: 30 + 7 + 30, the same 67 as the baseline), comments and whitespace removed, recorded from the working tree when it matched 5a91d26 (`git diff 5a91d26 -- '*/src/test/java'` empty). It fails if any recorded method is missing or its text differs.
+
+Sensitivity checks Build must run (prime:evidence):
+1. With the fix in place, delete the `publishDelegate` bean from `TestInfraConfig` and restore the `@BeforeClass` blocks: AC2 must fail again (seed 7).
+2. Change one assertion in an existing test method (for example `SalesBatchProcessTest`, `assertEquals` expected value): AC4 must fail naming that method. Revert.
+3. Put `-Dsurefire.runOrder=alphabetical` back in `ci.yml`: AC3 must fail. Revert.
+
+### Gap: card SBM-2's acceptance job
+
+The pipeline's `acceptance` job still runs SBM-2's `AC3_no_existing_source_test_or_build_file_changes.sh` on every pull request: it fails any branch that changes an existing file or adds one outside `.github/` and `docs/`. This card's branch adds a test class and, in Build, changes test classes and `ci.yml`, so that job is red whatever this card's own tests show, and Build's exit criterion "the pipeline on the latest commit passes" cannot be met while it runs unchanged. Changing or removing another card's acceptance check is a person's decision; asked at the end of this stage. Risk note posted on the card.
+
+### The pipeline on the test commit
+
+Run 45995634424 on d13a17e (https://github.com/pratapsuraj/java-poc1.8/actions/runs/45995634424): `java` fails with exactly the new tests: AC2 (seed 7, the same `NoSuchFileException` on `report-20261113.csv`) and AC3, each tried three times; AC1 and AC4 pass; the 67 existing tests pass (65, 2 HBase skipped). `acceptance` fails on SBM-2's AC3 only, for the two new files (the gap above). `ac4` fails because `java` failed. `ui` passes.
+
+### Exit criteria
+
+- Every criterion has an acceptance test whose name starts with its number: yes (table above).
+- Tests committed before any build, draft pull request linked: d13a17e, PR #8 linked on the card.
+- The pipeline on that commit shows the new tests failing: AC2 and AC3 fail; AC1 and AC4 are kept behaviour and pass, with sensitivity checks listed for Build.
+
+### Checkpoint
+
+- Next: Build per the roadmap (steps 6 to 9), after the person answers the question on SBM-2's acceptance check; then the sensitivity checks above.
+- Fresh-context review of the design (Plan's gap) still open: have one read "Design" and "Design review" before building, if a helper can be started.
