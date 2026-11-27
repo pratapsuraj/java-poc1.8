@@ -30,8 +30,11 @@ jobs:
           cache: maven
       # A failed test is retried up to 2 times (card SBM-2, decision 2a): one existing class is
       # flaky (risk SBM-3). A test that fails all three times still fails the build.
+      # Test classes run in alphabetical order, as on the developers' machines: in workflow-app the
+      # first class to start the shared Spring context fixes report.dir, and WebConfigTest (first in
+      # Linux's file order) sets none, so SalesBatchProcessTest then looks in the wrong folder.
       - name: Java tests
-        run: mvn -B clean test -Dsurefire.rerunFailingTestsCount=2
+        run: mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=alphabetical
       - name: Keep the test reports
         if: always()
         uses: actions/upload-artifact@v5
