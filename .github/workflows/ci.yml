@@ -1,5 +1,6 @@
 name: ci
 
+# Card SBM-2: run the Java and UI tests on every pull request and on every push to main.
 on:
   pull_request:
   push:
@@ -13,12 +14,63 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  # Card SBM-2, Test design: only the acceptance checks so far; the java and ui jobs come in Build.
+  java:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+      # A failed test is retried up to 2 times (card SBM-2, decision 2a): one existing class is
+      # flaky (risk SBM-3). A test that fails all three times still fails the build.
+      - name: Java tests
+        run: mvn -B clean test -Dsurefire.rerunFailingTestsCount=2
+      - name: Keep the test reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: java-test-reports
+          path: '**/target/surefire-reports/TEST-*.xml'
+          if-no-files-found: warn
+
+  ui:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: UI tests
+        run: |
+          set -o pipefail
+          mkdir -p ../reports/ui
+          npx ng test --watch=false --browsers=ChromeHeadless 2>&1 | tee ../reports/ui/ui-test.log
+      - name: Keep the test log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ui-test-log
+          path: reports/ui/ui-test.log
+          if-no-files-found: warn
+
   acceptance:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: AC1 pull request or push to main starts the Java and UI tests
@@ -32,10 +84,20 @@ jobs:
         run: bash .github/acceptance/AC3_no_existing_source_test_or_build_file_changes.sh origin/${{ github.base_ref || 'main' }}
 
   ac4:
+    needs: [java, ui]
+    if: always()
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: java-test-reports
+          path: reports/java
+      - uses: actions/download-artifact@v5
+        with:
+          name: ui-test-log
+          path: reports/ui
       - name: AC4 passes, running every existing test
         run: bash .github/acceptance/AC4_passes_running_every_existing_test.sh reports/java reports/ui/ui-test.log origin/main
