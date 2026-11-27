@@ -163,3 +163,31 @@ Decision (SA-3): `actions/checkout@v4` warns that Node 20 is deprecated on the r
 
 Logs beside the scratch folder: `build-run1-failed.log`, `build-run2.log`, `sens-ac2-run.log` in `.prime/tmp/SBM-2/`.
 The pipeline on the latest commit is read after the push below; its link is in the done comment.
+
+## Verify, Verify, 2026-11-27
+
+Source-blind: the change's workflow was read only for its triggers and test commands; evidence comes from the pipeline's runs read with `gh`, the diff's file list, and mutants run against the acceptance checks. Logs and the mutant script are in `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-2\` (`verify-*.log`, `verify-mutants.sh`, `verify-mutants/`).
+
+### Evidence per criterion
+
+Pull request https://github.com/pratapsuraj/java-poc1.8/pull/5, head a7de2d6 (the latest code commit; this card-file commit adds only this section and its own run is linked in the done comment).
+
+| Criterion | Test | Run | Result |
+|---|---|---|---|
+| AC1 | `AC1_pull_request_or_push_to_main_starts_java_and_ui_tests.sh` (7 checks) and the pull request starting `java` and `ui` | green https://github.com/pratapsuraj/java-poc1.8/actions/runs/45970999609; red before the build https://github.com/pratapsuraj/java-poc1.8/actions/runs/45969935868 | pass, 7 of 7; `java`, `ui`, `acceptance`, `ac4` all ran on `pull_request`. Push to main can only be observed after merge; the trigger is checked statically. |
+| AC2 | `AC2_fails_when_a_java_or_ui_test_fails.sh` (4 checks) and the observed sensitivity run | green 45970999609; red https://github.com/pratapsuraj/java-poc1.8/actions/runs/45970587387 | pass, 4 of 4; in the red run `Ac2SensitivityTest` failed runs 1, 2, 3 and `java` ended `BUILD FAILURE`; `ui` `TOTAL: 1 FAILED, 25 SUCCESS`, exit 1. |
+| AC3 | `AC3_no_existing_source_test_or_build_file_changes.sh` | green 45970999609; red 45970587387 (new test files outside `.github/`, `docs/`) | pass; and `git diff --name-status origin/main...a7de2d6` lists 7 files, all `A`, under `.github/` and `docs/`; no file modified or deleted. |
+| AC4 | `AC4_passes_running_every_existing_test.sh` | green 45970999609 (`ac4` job); red before the build 45969935868 | pass: 16 existing test classes reported; Java per module 30/0/0, 7/0/2 (HBase skipped), 30/0/0 = 67 run, 0 failed, 2 skipped, `BUILD SUCCESS`; UI `TOTAL: 25 SUCCESS`. |
+
+### Side-by-side
+
+No existing file differs between `main` (845b371) and the head, so the application built from either is the same source; a run of old against new would compare identical code. Environment axis: the pipeline on Linux, Java 8 gives the Windows baseline's per-module counts (30/7/30, 2 skipped); the one difference, the flaky class passing, is the known race (risk SBM-3) and goes the expected way. Known-differences ledger: none recorded and none found.
+
+### Sensitivity
+
+Mutants of `ci.yml` at a7de2d6 run against the AC1 and AC2 checks (`verify-mutants.sh`): 10 of 10 killed (no pull request trigger, no push trigger, push on another branch, `mvn compile` instead of `test`, UI in watch mode, 5 retries, `|| true`, `-DskipTests`, `maven.test.failure.ignore`, `continue-on-error`). AC3's own sensitivity: the red run 45970587387 failed AC3 on two new test files. The observed red run is on a scratch commit before aee05c3 and a7de2d6; those two commits change only test order and artifact action versions, not how a failure ends the job.
+
+### Gaps
+
+- Second verifier (Sonnet) not started: this session has no tool to start a helper agent. One verifier's verdict only.
+- AC1's push-to-main half is observable only after the merge.
