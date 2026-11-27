@@ -62,11 +62,52 @@ One slice a person can try: "run the Java tests in any order on a clean machine 
 
 ## Plan, the card lead, 2026-11-27
 
-Asked SBM-Q8 (criteria, set-up and clean-up changes under SA-2, pipeline order), defaults as in Assess's decisions. The card waits on a person; design and roadmap follow the answer.
+Asked SBM-Q8 (criteria, set-up and clean-up changes under SA-2, pipeline order), defaults as in Assess's decisions. A person answered 2026-11-27 11:39, all defaults. The criteria are copied word for word onto the card's description:
 
-### Checkpoint
+- AC1 Java tests pass in reverse alphabetical order, temp folder free of earlier reports
+- AC2 they pass in random order (three seeds) from such a folder
+- AC3 the pipeline runs them in no fixed order and passes
+- AC4 existing test steps and assertions unchanged, existing and new tests pass
 
-- Learned: the dependence is `report.dir` fixed by whichever Spring test class builds the cached context first, plus a shared, never-cleaned report folder that hides it locally.
-- Decisions: test-only change; one slice; verdict proceed with review (by hand).
-- Open: SBM-Q8.
-- Next: copy the answered criteria onto the card's description; design (likely: `TestInfraConfig` gives the context its own fresh report folder, classes read it from the context instead of a system property; remove leftovers in set-up), roadmap, fresh-context review, then Test design.
+Also settled by that answer: existing test classes may change set-up and clean-up code only (this narrows standing answer SA-2 for this card); `ci.yml` drops the fixed alphabetical order for random order.
+
+### Design
+
+The cause is one value read once: `PublishDelegate` gets `${report.dir}` when the cached Spring test context is built, so the class that happens to build it first decides where reports go. The fix makes the test context own its report folder instead of a JVM-wide system property.
+
+1. `TestInfraConfig` (shared test support) gets a bean `testReportDir` (`java.nio.file.Path`): a new folder from `Files.createTempDirectory("sales-batch-test-reports")` per context, so it is empty when the context starts whatever ran before. It also declares `@Bean publishDelegate(SalesRepository, Path)` returning `new PublishDelegate(repository, dir.toString())`. A `@Bean` method silently replaces a component-scanned bean of the same name in Spring 4.3 (`ConfigurationClassBeanDefinitionReader`, scanned definitions are overridable), so the process's `${publishDelegate}` resolves to the test one. No production code changes.
+2. Spring test classes (`BatchControllerTest`, `BatchControllerUploadTest`, `SalesBatchProcessTest`): set-up only. Drop the `@BeforeClass` that sets `report.dir`. `SalesBatchProcessTest` keeps its field name `reportDir` but fills it from the context (`@Autowired Path reportDir`, non-static), and its `@Before` empties that folder, so each test starts from an empty folder even within the shared context. Test methods are byte-identical.
+3. `WorkflowServerTest` builds its own context with `TestInfraConfig` per test, so it gets a fresh folder too; drop its `report.dir` line from `@Before`. Its `@After` already clears its other property.
+4. `ci.yml`: replace `-Dsurefire.runOrder=alphabetical` with `-Dsurefire.runOrder=random`, keep `-Dsurefire.rerunFailingTestsCount=2` (the approval race, card SBM-5).
+5. Clean-up of the temp folders: the bean's destroy method deletes the folder (best effort), so runs leave nothing for the next run to hide behind.
+
+Not chosen: `@DirtiesContext` (rebuilds the Activiti engine per class, slow, and still relies on the property); `@TestPropertySource` (static values, cannot give a fresh folder); an `ApplicationContextInitializer` (needs an annotation on every class, more change for the same effect).
+
+`failSpark` and `sparkDelayMillis`: only `SalesBatchProcessTest` sets them to non-defaults and its `@After` resets both; the controller tests reset `failSpark` in `@Before`. No order effect seen in Assess; left as they are.
+
+### Finding from planning: the Assess "random seeds" were not seeds
+
+The root `pom.xml` pins `maven-surefire-plugin` 2.22.2. `-Dsurefire.runOrder.random.seed` exists only from 3.0.0-M6, so Assess's three "seeded" random runs were three unseeded random runs. AC2 needs three reproducible orders, so the acceptance test does its own seeded shuffle (below) rather than bump the build plugin, which would be a lasting build change outside this card.
+
+### Roadmap
+
+Test design (tests first, committed before any build, all failing or exempt for a stated reason):
+
+1. `AC1_...` in `workflow-app/src/test/java/.../workflow/RunOrderAcceptanceTest.java` (name settled in Test design): forks a child JVM (`java -cp <test classpath> org.junit.runner.JUnitCore <classes>`) with `-Djava.io.tmpdir=<new empty folder>`, running every `workflow-app` test class except the acceptance class itself in reverse alphabetical order; asserts exit 0. Fails today (WebConfigTest before SalesBatchProcessTest).
+2. `AC2_...`: the same fork three times, order `Collections.shuffle(classes, new Random(seed))` for seeds 1, 2, 3, each in a fresh tmpdir; asserts each exits 0 and names the seed and order on failure. Test design checks that at least one seed puts `WebConfigTest` before `SalesBatchProcessTest`, else picks seeds that do, so the test can fail today.
+3. `AC3_...`: reads `.github/workflows/ci.yml` and asserts the Java test step has no fixed `runOrder` (`alphabetical`, `reversealphabetical`, `filesystem`), and has `runOrder=random`; the pipeline run on the Build commit is the rest of AC3's proof.
+4. `AC4_...`: a fingerprint of every existing `@Test` method body in the three modules (SHA-256 of the normalised source), recorded from `main` at 5a91d26 into a test resource; the test recomputes and compares. Plus the full suite passing.
+5. Commit, push, open the draft pull request, link it; pipeline on that commit shows AC1 to AC3 failing.
+
+Build:
+
+6. `TestInfraConfig`: `testReportDir` and `publishDelegate` beans (design 1, 5).
+7. Set-up changes in the four test classes (design 2, 3). Run `mvn -B test -pl workflow-app -am -DfailIfNoTests=false -Dtest=WebConfigTest,SalesBatchProcessTest -Dsurefire.runOrder=reversealphabetical -Djava.io.tmpdir=<empty>`: passes.
+8. `ci.yml` order flag (design 4).
+9. Full `mvn -B clean test` locally in a fresh tmpdir, then the pipeline; sensitivity: revert step 6 locally and see AC1 fail.
+
+### Decisions I took
+
+- Replace the bean in test config rather than set the property earlier (SA-3: the agent picks the means). A static initialiser that sets `report.dir` first would still be JVM-wide and still share one folder across classes.
+- Seeded shuffle in the acceptance test instead of upgrading Surefire (above).
+- Forking a child JVM in AC1 and AC2 because Spring's context cache is per JVM: running classes in-process after the suite has built the context would prove nothing.
