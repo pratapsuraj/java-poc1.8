@@ -120,3 +120,24 @@ Gap: this session has no tool to start a helper agent, and running a separate `c
 4. Spark 2.4 local mode on Linux JDK 8 needs no Hadoop `winutils`; runner hostnames resolve. A failure here shows on the first `java` run in Build, step 2 (answered, watched).
 5. Maven 3.9 and Chrome are on the `ubuntu-24.04` image; no install step (answered).
 6. AC2 with retries: a test that always fails fails 3 times and the job is red, so retries do not hide a real failure (answered; the sensitivity run proves it).
+
+## Test design, the card lead, 2026-11-27
+
+Acceptance checks, one per criterion, in `.github/acceptance/` (commit 2cb5b86, before any build), run by the pipeline itself (`.github/workflows/ci.yml`, at this commit only the `acceptance` and `ac4` jobs):
+
+| Criterion | Check | Kind | On 2cb5b86 |
+|---|---|---|---|
+| AC1 | `AC1_pull_request_or_push_to_main_starts_java_and_ui_tests.sh`: triggers, `mvn -B clean test`, `npm ci`, `ng test --watch=false --browsers=ChromeHeadless` in `ui/`. Observed half: the pull request's run shows the `java` and `ui` jobs | new | fails (4 of 7 checks: no test commands yet) |
+| AC2 | `AC2_fails_when_a_java_or_ui_test_fails.sh`: no `continue-on-error`, no hidden exit code, no skip or ignore flags, Java retries set and at most 2. Observed half: the sensitivity run below | new | fails (no retry count yet) |
+| AC3 | `AC3_no_existing_source_test_or_build_file_changes.sh`: every file changed against the base is new and under `.github/` or `docs/` | kept | passes, as it should: nothing outside them has changed |
+| AC4 | `AC4_passes_running_every_existing_test.sh`: every class with a JUnit `@Test` under `src/test` on `main` (16) has a surefire report; no failure or error; at most 2 skipped; the UI log shows `TOTAL: n SUCCESS` and no failure | new | fails (no reports yet) |
+
+Pipeline on 2cb5b86: https://github.com/pratapsuraj/java-poc1.8/actions/runs/45969935868 (red: AC1, AC2, AC4 fail; AC3 passes).
+Draft pull request: https://github.com/pratapsuraj/java-poc1.8/pull/5, linked on the card.
+
+Sensitivity checks Build must run:
+- AC3 (passes before the build): on a scratch copy, add a line to `pom.xml` and commit; AC3 must fail. Local run is enough, it is a script.
+- AC2 (observed): a scratch branch off the card's branch with `@Test public void ac2Sensitivity() { org.junit.Assert.fail(); }` added to a new class in `common/src/test`; the `java` job must be red after its 2 retries. Then one with a failing `it(...)` in a new `ui/src/app/ac2-sensitivity.spec.ts`; the `ui` job must be red. Run links here; the scratch branches are deleted, never merged.
+- AC4: on the green run, the check's output counts (16 classes, Java totals, UI total) go here.
+
+Decision (SA-3): `actions/checkout@v4` warns that Node 20 is deprecated on the runners, so Build uses the v5 majors of `checkout`, `setup-java` and `setup-node`.
