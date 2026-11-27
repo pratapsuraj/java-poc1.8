@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,12 +29,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {AppConfig.class, TestInfraConfig.class})
 public class BatchControllerTest {
-
-    @BeforeClass
-    public static void reportDirectory() throws Exception {
-        System.setProperty("report.dir", Files.createDirectories(
-                java.nio.file.Paths.get(System.getProperty("java.io.tmpdir"), "sales-batch-test-reports")).toString());
-    }
 
     @Autowired BatchService batchService;
     private MockMvc mvc;
