@@ -143,3 +143,21 @@ In its place, the card lead re-read the design against the code (not fresh conte
 4. `afterCommit` exceptions reach the job executor after its job is committed. Settled in the design (catch inside the listener).
 5. Other pre-commit writes: `RUNNING` and `recordError` stay inside the job transaction; if the job rolls back and is retried they are written again with the same values. Harmless, as today; no client acts on them.
 6. The `RUNNING` guard on every path that uses it: ingest failure, Spark failure and Spark success all have `RUNNING` stored just before (written by `IngestDelegate` in the earlier or same job). Settled: no path changes.
+
+## Test design, the card lead, 2026-11-27
+
+Tests: `workflow-app/src/test/java/com/example/salesbatch/workflow/ApprovalRaceAcceptanceTest.java`, own Spring context on its own H2 database (`jdbc:h2:mem:sbm5probe`), a probe status store (subclass of `InMemorySalesRepository`) that, the moment `WAITING_APPROVAL` or `FAILED` is written, asks the engine from another thread what a client would see. Committed at 82caf5f, then 5b9f50c (the probe's threads were shut down after the class, so the pipeline's reruns of a failed test hung at `RUNNING`; now daemon threads that stay up). No source change in either commit; no existing file changed (`git diff --name-status origin/main...5b9f50c`: two added files, this one and the test).
+
+| Criterion | Test | On today's code |
+|---|---|---|
+| AC1 | `ac1_approveAtOnceAfterWaitingApprovalNeverGets409` (30 runs over REST, approve the moment the status shows) | fails: `409 No pending approval` (local and pipeline, every attempt) |
+| AC1 | `ac1_approvalTaskExistsWhenWaitingApprovalIsShown` (probe, 5 runs) | fails: 0 approval tasks visible when the status was written (deterministic) |
+| AC2 | `ac2_sparkFailureShownFailedHasEndedWithNoApprovalTask`, `ac2_badCsvShownFailedHasEndedWithNoApprovalTask` (15 runs each, plus probe) | fail: run still alive when shown `FAILED` |
+| AC3 | `ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries` (runs `SalesBatchProcessTest` and `BatchControllerTest` 20 times in-process, no reruns); "unchanged" is the diff above | fails locally (run 2 and run 6 of 20 in two runs); passed in both pipeline runs. A weak signal on the pipeline's runner; the AC1/AC2 tests carry the proof there |
+| AC4 | `ac4_statusSequencesAreAsBefore` (status sequence for approve, reject, bad CSV, Spark failure; report lines; error text) | passes, as it should (behaviour kept); the full side-by-side against `main` is in Verify |
+
+Pipeline on the test commit 5b9f50c: https://github.com/pratapsuraj/java-poc1.8/actions/runs/45987853559 , java job red: `ApprovalRaceAcceptanceTest` 4 failing tests (AC1 x2, AC2 x2) in all 3 attempts, every other Java class passes; UI 25 of 25. Earlier run on 82caf5f: https://github.com/pratapsuraj/java-poc1.8/actions/runs/45986994560 . Logs: `.prime/tmp/SBM-5/pipeline-red.log`, `pipeline-red2.log`, local `td-red.log`.
+
+Draft pull request: https://github.com/pratapsuraj/java-poc1.8/pull/7 , linked on the card.
+
+Found: SBM-2's pipeline check "AC3 no existing source, test or build file changes" (`.github/acceptance/AC3_...sh`, step in `.github/workflows/ci.yml`) fails on this pull request because a new test file lies outside `.github/` and `docs/`. It was SBM-2's own criterion, merged into `main`'s pipeline, so it fails every later pull request that changes code. Under standing answer SA-2 an agent may not change an existing test, so Build cannot make the pipeline green alone; see Build.
