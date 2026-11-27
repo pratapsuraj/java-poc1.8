@@ -75,3 +75,8 @@ Not asked (decided here, SA-3): Maven and npm caches in the pipeline (yes, `acti
 - Application folder and test commands on the card: change map above, summarised in the done comment.
 - Tests passing before the change: Java 64 of 67 (1 flaky failure, 2 skipped), UI 25 of 25.
 - One slice: yes, above.
+
+## Plan, the card lead, 2026-11-27
+
+Asked Plan's one question (the three decisions above, with their defaults): https://github.com/pratapsuraj/java-poc1.8/issues/2#issuecomment-7213437379
+Card parked in Plan, labelled blocked, claim kept. Next step: on the answer, copy the criteria onto the card word for word, remove blocked, write the design and roadmap here, have a fresh helper read them.
