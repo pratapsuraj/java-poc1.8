@@ -32,8 +32,16 @@ jobs:
       # flaky (risk SBM-3). A test that fails all three times still fails the build.
       # Test classes run in random order (card SBM-6): each test context owns its report folder, so the
       # tests must pass in any order, and a new order dependence shows up here rather than later.
+      # The log is kept so the next step can show the order this run used (surefire 2.22.2 prints no seed).
       - name: Java tests
-        run: mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=random
+        run: |
+          set -o pipefail
+          mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=random 2>&1 | tee "$RUNNER_TEMP/java-test.log"
+      # Shows the class order with a command to repeat it, and fails when a test passed only on a retry
+      # outside the classes of the known approval race, so a retry cannot hide a new order dependence.
+      - name: Java run order, and no retries outside the known race
+        if: always()
+        run: python3 .github/scripts/java_run_order.py "$RUNNER_TEMP/java-test.log" .
       - name: Keep the test reports
         if: always()
         uses: actions/upload-artifact@v7
