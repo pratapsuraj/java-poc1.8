@@ -157,3 +157,33 @@ The next lead (Test design or a reviewer) may still run a fresh-context read; no
 - No OpenRewrite or other recipe: the change is three small pom edits, which a recipe would not shorten.
 - Defined "log4j 1.2 classes" (AC1, AC2) as classes that come from the `log4j:log4j` artifact. The bridge `log4j-over-slf4j` also puts classes under `org/apache/log4j/` (for example `Logger`, `Log4jLoggerFactory`); they are SLF4J's, not log4j 1.2's, and carry none of the vulnerable code. This reading follows the person's item 2 answer and Assess's trial 2, which the person saw. A test that bans all of `org/apache/log4j/` would contradict AC3's design.
 - Pipeline dependency: `main`'s pipeline still runs SBM-2's check that no existing build file changes (`AC3_no_existing_source_test_or_build_file_changes.sh`), which this card's pom edits will fail. SBM-6's branch removes that check. Build rebases `card/SBM-7` on `main` once SBM-6 is merged; if it is not merged by then, Build records the failing check as caused outside the card rather than editing SBM-2's check here.
+
+## Test design, the card lead, 2026-11-28
+
+A first Test design lead drafted the tests and the pipeline job on 2026-11-27 and its claim lapsed before it committed; this lead checked the drafts, ran them, and committed them unchanged.
+
+### Acceptance tests (one per criterion, in `.github/acceptance/SBM-7/`, run by the pipeline job `sbm7-acceptance` after `mvn -B package -DskipTests`)
+
+| Criterion | Test | What it checks |
+|---|---|---|
+| AC1 | `AC1_workflow_app_jar_has_no_log4j_1_2_classes.sh` | Lists `workflow-app/target/workflow-app.jar`; fails on any `org/apache/log4j/` class outside the 30 names `log4j-over-slf4j` 1.7.30 ships, on `META-INF/maven/log4j/log4j/`, `META-INF/maven/org.slf4j/slf4j-log4j12/` and `org/slf4j/impl/Log4jLoggerFactory.class` (shared helper `log4j12_check.sh`; the definition is Plan's recorded decision). |
+| AC2 | `AC2_spark_job_jar_has_no_log4j_1_2_classes.sh` | The same check on `spark-job/target/spark-job-1.0.0-SNAPSHOT.jar`. |
+| AC3 | `AC3_workflow_app_log_lines_reach_the_console.sh` | Starts the shaded jar with `java -jar` (as an operator would), reads stdout for up to 90 s; passes when a line in `logback.xml`'s pattern (`HH:mm:ss.SSS LEVEL logger - msg`) reaches stdout and "log4j:WARN No appenders could be found" is not printed. |
+| AC4 | `AC4_existing_tests_unchanged_and_versions_unchanged.sh` | No existing test file (`*/src/test/*`, `ui/src/*.spec.ts`) modified, deleted or renamed against the base; root `pom.xml` keeps `java.version` 1.8, `spark.version` 2.4.8, `hbase.version` 1.4.13, `hadoop.version` 2.10.1, `scala.version` 2.11.12, `scala.binary.version` 2.11. "Existing tests pass" is observed as the pipeline's `java` job; "new tests pass" is AC1 to AC3 green in the same run. |
+
+### Local runs before the commit (Java 8 Corretto 1.8.0_512, Windows Git Bash)
+
+- AC1, AC2 on today's jars (worktree `wt`, branch as at b9d3996): both FAIL, 297 log4j 1.2 entries each (`AsyncAppender`, `META-INF/maven/log4j/log4j/` and the rest).
+- AC1, AC2 on Plan's trial 3 jars (`<programme>/.prime/tmp/SBM-7/trial`): both ok. So they tell the two apart.
+- AC3 on today's jar: FAIL, no logback line on stdout and "log4j:WARN No appenders" on stderr (`td-ac3-before.txt`). On the trial 3 jar: ok, 56 log lines (`td-ac3-trial.txt`). The app stops on its own without HBase (RetriesExhaustedException) in both; Jetty and Spring log before that, which is all AC3 needs.
+- AC4 run from the person's working copy on `card/SBM-6` (the session cannot run git scripts inside the scratch worktree): it reported SBM-6's five changed test files and no version failure, so both halves work. On this branch it is expected to pass.
+
+### Which criteria are new behaviour and which are kept
+
+- AC1, AC2, AC3: new behaviour. The pipeline on the test commit must show them failing (below).
+- AC4: kept behaviour; it passes before and after. Sensitivity check Build must run (`prime-sensitivity`, scratch copy): change `<spark.version>2.4.8</spark.version>` to `2.4.7` in the root `pom.xml`, AC4 must FAIL naming `spark.version`; and edit one line of an existing test (for example a comment in `common/src/test/.../*Test.java`) and commit it in the copy, AC4 must FAIL naming that file.
+- Sensitivity for AC1 to AC3 after the build: revert the `spark-job` shade `artifactSet` excludes, AC2 must fail; drop `log4j-over-slf4j` and the `common` exclusions, AC1 and AC3 must fail.
+
+### Pipeline on the test commit
+
+See "Pipeline result" below (filled after the push).
