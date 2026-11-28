@@ -282,3 +282,60 @@ On a local throwaway branch (`sens/SBM-7-ac4`, never pushed, deleted after) with
 |---|---|
 | The pipeline on the latest commit passes, the acceptance tests unchanged | Run 46159518010 green on 0d08cd6; acceptance tests unchanged. The commit after it changes only this file. |
 | The pull request is ready for review | #9 open, not draft, mergeable. |
+
+## Verify, Verify, 2026-11-28
+
+Verdict: ACCEPT (one verifier; see Gaps). Source-blind: read the pipeline, the card, this file's ledger, the build files (`pom.xml` diff), the acceptance scripts, and probed the built jars and the running app. No Java source read. Fresh clones of main (0ba05f1) and the pull request's head (7c8e1f0) in `<programme>/.prime/tmp/SBM-7/verify/` (`old`, `new`); main has no commit the branch lacks.
+
+### Per criterion (pipeline on the head 7c8e1f0, run https://github.com/pratapsuraj/java-poc1.8/actions/runs/46159947466, all five jobs success)
+
+| Criterion | Test | Green run (head) | Red run (tests before the build, 012893f) |
+|---|---|---|---|
+| AC1 | `.github/acceptance/SBM-7/AC1_workflow_app_jar_has_no_log4j_1_2_classes.sh` | ok: "workflow-app.jar holds no log4j 1.2 classes" | https://github.com/pratapsuraj/java-poc1.8/actions/runs/46107251172: FAIL, 297 log4j 1.2 entries |
+| AC2 | `AC2_spark_job_jar_has_no_log4j_1_2_classes.sh` | ok: "spark-job jar holds no log4j 1.2 classes" | same run: FAIL, 297 entries |
+| AC3 | `AC3_workflow_app_log_lines_reach_the_console.sh` | ok: 173 log lines reached the console | same run: FAIL, no logback line; "log4j:WARN No appenders" |
+| AC4 | `AC4_existing_tests_unchanged_and_versions_unchanged.sh` + `java` and `ac4` jobs | ok; `java` job common 33/33, spark-job 7 run 5 pass 2 skipped, workflow-app 41/41; `ac4` job: 81 run, 0 failed, 2 skipped, UI 25/25 | kept criterion: ok in the red run too, as designed |
+
+Run logs saved in the scratch folder (`run-46159947466.log`, `run-46107251172.log`).
+
+### Side-by-side, main against the head (fresh clones, Java 8 Corretto 1.8.0_512, Maven 3.9.16)
+
+Inputs: the full existing test suite (81 Java tests), both shaded jars' full listings, and the real artifact (`java -jar workflow-app.jar`) started in three environments: default, `-Dfile.encoding=ISO-8859-1`, and `-Duser.language=ar -Duser.country=EG`. 6 app runs, 2 builds, 2 jar pairs. Scripts: `verify/jardiff.sh`, `verify/runapp.sh`, `verify/ac3.sh`, `verify/ac4.sh`.
+
+| What | main | head | Ledger group |
+|---|---|---|---|
+| Tests (`mvn -B clean package`, rerun and order flags) | 33 / 7 (2 skipped) / 41, BUILD SUCCESS | identical | 3 (no difference) |
+| workflow-app.jar | 34467 entries | 34152: 319 removed (309 `org/apache/log4j/*`, `META-INF/maven/log4j`, slf4j-log4j12's 3 `org/slf4j/impl/Log4j*` classes and its maven dir); 4 added (bridge's `org/apache/log4j/Log4jLoggerFactory.class` and its maven dir). logback's `StaticLoggerBinder` present | 2 (stricter, intended) |
+| spark-job jar | 16426 entries | 16070: 356 removed (342 `org/apache/log4j/*`, slf4j-log4j12, log4j maven dir), 0 added | 2 (stricter, intended) |
+| ZooKeeper in jars | present | present (439 / 410 entries) | not reachable, person's SBM-Q10 item 2 |
+| App stdout, every environment | 0 lines | 1029 lines, 56 in logback's pattern, Latin digits in all three environments | 1 (different, intended) |
+| App stderr | 71 lines: 3 `log4j:WARN` lines, then the HBase `RetriesExhaustedException` start-up failure (no HBase here) | 68 lines: the same exception and stack, without the 3 `log4j:WARN` lines | 1 |
+| App exit code | 1 (no HBase) | 1 (no HBase) | no difference |
+| `NoClassDefFound`, `ClassNotFound`, `SLF4J:` warnings in head's app output | | none | |
+
+Every difference is inside Assess's groups 1 and 2, in their direction; nothing differs by environment. Public API: the change is build files only (three poms, the pipeline and acceptance scripts), so the in-process reach is the existing test suite, which agrees.
+
+### Sensitivity (fresh copies of the head with build-file mutants)
+
+| Mutant | Result |
+|---|---|
+| mA: drop spark-job shade `artifactSet` excludes | AC2 FAIL (297 entries); AC1 ok. KILLED |
+| mB: drop `log4j-over-slf4j` and the `common` exclusions | AC1 FAIL (297 entries); AC3 FAIL (no logback line, "No appenders"); AC2 ok. KILLED |
+| mC: drop only the `slf4j-log4j12` exclusion in `common` | existing tests: 20 errors in workflow-app, BUILD FAILURE (the `java` job of AC4). KILLED |
+| D1: `scala.version` 2.11.11, committed | AC4 FAIL "scala.version is '2.11.11', expected '2.11.12'". KILLED |
+| D2: comment line in `RowKeysTest.java`, committed | AC4 FAIL "existing test file changed (M): ...RowKeysTest.java". KILLED |
+
+No mutation-testing tool in the project; not applicable to build-file changes.
+
+### Exit criteria
+
+| Criterion | How it holds |
+|---|---|
+| Every criterion's test passed in the pipeline on the latest commit | Run 46159947466 on 7c8e1f0 green; the commit adding this section changes only this file, and its run is linked in the done comment. |
+| The evidence comment lists criterion, test, run and result, and links the red run | Table above; red run 46107251172 linked. |
+
+### Gaps
+
+- Second verifier: the workflow asks for two; this session has no tool to start a subagent, so only one verdict exists. Recorded, not asked (machinery).
+- Not proven on an EMR cluster: the spark-job jar now relies on the cluster's own log4j 1.2.17 (Plan's finding 4; the open risk SBM-9).
+- The ZooKeeper authorization bypass in the card text has no criterion; the person settled it as not reachable (SBM-Q10 item 2).
