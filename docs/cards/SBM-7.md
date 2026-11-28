@@ -162,7 +162,7 @@ The next lead (Test design or a reviewer) may still run a fresh-context read; no
 
 A first Test design lead drafted the tests and the pipeline job on 2026-11-27 and its claim lapsed before it committed; this lead checked the drafts, ran them, and committed them unchanged.
 
-### Acceptance tests (one per criterion, in `.github/acceptance/SBM-7/`, run by the pipeline job `sbm7-acceptance` after `mvn -B package -DskipTests`)
+### Acceptance tests (one per criterion, in `.github/acceptance/SBM-7/`, run by the pipeline job `sbm7-acceptance` after `mvn -B package`; locally `-DskipTests` is fine)
 
 | Criterion | Test | What it checks |
 |---|---|---|
@@ -186,4 +186,18 @@ A first Test design lead drafted the tests and the pipeline job on 2026-11-27 an
 
 ### Pipeline on the test commit
 
-See "Pipeline result" below (filled after the push).
+Run on 012893f: https://github.com/pratapsuraj/java-poc1.8/actions/runs/46107251172 (draft pull request https://github.com/pratapsuraj/java-poc1.8/pull/9).
+
+- `sbm7-acceptance`: jars built; AC1 FAIL (297 log4j 1.2 entries), AC2 FAIL (297 entries), AC3 FAIL (no logback line on stdout; "log4j:WARN No appenders could be found"), AC4 ok. New tests fail as they must; the kept criterion passes.
+- `java`, `ui`, `ac4`: green (existing tests pass).
+- SBM-2's `acceptance` job: AC3 FAIL "existing file changed (M): .github/workflows/ci.yml" (the known dependency on SBM-6, see Plan) and AC2 FAIL "Maven is told to ignore or skip tests", caused by this card's `mvn -B package -DskipTests` step. Fixed in the next commit: the job builds the jars with the tests running (`mvn -B package` with the pipeline's rerun and order flags). Acceptance scripts unchanged.
+
+### Exit criteria
+
+| Criterion | How it holds |
+|---|---|
+| Every criterion has an acceptance test whose name starts with its number | AC1 to AC4, table above. |
+| Tests committed before any build, draft pull request linked | 012893f holds only tests, the pipeline job and this file; no pom changed. Pull request #9, draft, linked on the card. |
+| Pipeline on that commit shows the new tests failing | Run 46107251172: AC1 to AC3 fail, AC4 (kept) passes, its sensitivity check written above for Build. |
+
+Gap outside the card: SBM-2's no-existing-file-changes check fails on any edit to `ci.yml` or a pom until SBM-6 (which removes it) is merged; Build rebases on main then.

@@ -117,8 +117,8 @@ jobs:
           distribution: temurin
           java-version: '8'
           cache: maven
-      - name: Build the shaded jars
-        run: mvn -B package -DskipTests
+      - name: Build the shaded jars (tests run too; the pipeline never skips them)
+        run: mvn -B package -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=alphabetical
       - name: AC1 workflow-app jar has no log4j 1.2 classes
         if: always()
         run: bash .github/acceptance/SBM-7/AC1_workflow_app_jar_has_no_log4j_1_2_classes.sh
