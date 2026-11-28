@@ -7,11 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,12 +27,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {AppConfig.class, TestInfraConfig.class})
 public class BatchControllerUploadTest {
-
-    @BeforeClass
-    public static void reportDirectory() throws Exception {
-        System.setProperty("report.dir", Files.createDirectories(
-                Paths.get(System.getProperty("java.io.tmpdir"), "sales-batch-test-reports")).toString());
-    }
 
     @Autowired BatchService batchService;
     @Autowired InMemorySalesRepository repository;

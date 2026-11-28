@@ -30,11 +30,19 @@ jobs:
           cache: maven
       # A failed test is retried up to 2 times (card SBM-2, decision 2a): one existing class is
       # flaky (risk SBM-3). A test that fails all three times still fails the build.
-      # Test classes run in alphabetical order, as on the developers' machines: in workflow-app the
-      # first class to start the shared Spring context fixes report.dir, and WebConfigTest (first in
-      # Linux's file order) sets none, so SalesBatchProcessTest then looks in the wrong folder.
+      # Test classes run in random order (card SBM-6): each test context owns its report folder, so the
+      # tests must pass in any order, and a new order dependence shows up here rather than later.
+      # The log is kept so the next step can show the order this run used (surefire 2.22.2 prints no seed).
       - name: Java tests
-        run: mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=alphabetical
+        run: |
+          set -o pipefail
+          mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=random 2>&1 | tee "$RUNNER_TEMP/java-test.log"
+      # Shows the class order with a command to repeat it, and fails when a test passed only on a retry
+      # (the approval race it could excuse, matched by test, exception and message, was fixed by card SBM-5),
+      # so a retry cannot hide a new order dependence.
+      - name: Java run order, and no retries outside the known race
+        if: always()
+        run: python3 .github/scripts/java_run_order.py "$RUNNER_TEMP/java-test.log" .
       - name: Keep the test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -83,8 +91,8 @@ jobs:
         if: always()
         run: bash .github/acceptance/AC2_fails_when_a_java_or_ui_test_fails.sh
       # SBM-2's "AC3 no existing source, test or build file changes" step was removed by card SBM-5
-      # (a person's answer to SBM-Q7): it held for SBM-2's own change only and fails every pull
-      # request that changes code. Its script stays in .github/acceptance/ as SBM-2's record.
+      # (a person's answer to SBM-Q7) and card SBM-6 (SBM-Q9): it held for SBM-2's own change only and
+      # fails every pull request that changes code. SBM-6 also deleted its script.
 
   ac4:
     needs: [java, ui]

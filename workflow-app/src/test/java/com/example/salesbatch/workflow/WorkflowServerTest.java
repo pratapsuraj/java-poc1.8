@@ -9,8 +9,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,8 +33,6 @@ public class WorkflowServerTest {
     @Before
     public void startServer() throws Exception {
         System.setProperty("activiti.jdbc.url", "jdbc:h2:mem:workflowservertest;DB_CLOSE_DELAY=-1");
-        System.setProperty("report.dir", Files.createDirectories(
-                Paths.get(System.getProperty("java.io.tmpdir"), "sales-batch-test-reports")).toString());
         server = WorkflowServer.createServer(0, AppConfig.class, TestInfraConfig.class);
         server.start();
         port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();

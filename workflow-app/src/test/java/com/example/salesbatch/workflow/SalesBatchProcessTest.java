@@ -15,7 +15,6 @@ import org.activiti.engine.RuntimeService;
 import org.activiti.engine.TaskService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,13 +28,12 @@ import com.example.salesbatch.workflow.service.BatchService;
 @ContextConfiguration(classes = {AppConfig.class, TestInfraConfig.class})
 public class SalesBatchProcessTest {
 
-    static Path reportDir;
+    /** The test context's own report folder (TestInfraConfig, card SBM-6), emptied before each test. */
+    @Autowired Path reportDir;
 
-    @BeforeClass
-    public static void reportDirectory() throws Exception {
-        // Same directory in every test class: the Spring context is cached and report.dir is read only once.
-        reportDir = Files.createDirectories(Paths.get(System.getProperty("java.io.tmpdir"), "sales-batch-test-reports"));
-        System.setProperty("report.dir", reportDir.toString());
+    @Before
+    public void emptyReportDirectory() throws Exception {
+        TestInfraConfig.emptyFolder(reportDir);
     }
 
     @Autowired BatchService batchService;
