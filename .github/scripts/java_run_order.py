@@ -3,9 +3,10 @@
 
 Surefire 2.22.2 runs the test classes in random order but cannot print or take a seed, so this script prints
 the order the run used (from Maven's "Running <class>" lines), with a command that runs the same order again.
-A test that failed and then passed on a retry fails this step, unless its class is one of the classes of
-the known approval race (risk SBM-3, fixed by card SBM-5), for which the retries exist (card SBM-2,
-decision 2a). Empty KNOWN_RACE_CLASSES when SBM-5 is merged.
+A test that failed and then passed on a retry fails this step, unless every failed try is the known approval
+race (risk SBM-3, fixed by card SBM-5), for which the retries exist (card SBM-2, decision 2a). The race is
+recognised by test method, exception type and message, never by class alone, so any other failure in the
+same test (a missing report, for instance) still fails the step. Empty KNOWN_RACE when SBM-5 is merged.
 
 Usage: java_run_order.py <maven log> <folder holding the surefire reports>
 """
@@ -15,10 +16,31 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-KNOWN_RACE_CLASSES = {
-    "com.example.salesbatch.workflow.SalesBatchProcessTest",
-    "com.example.salesbatch.workflow.BatchControllerTest",
-}
+_PROCESS = "com.example.salesbatch.workflow.SalesBatchProcessTest"
+_CONTROLLER = "com.example.salesbatch.workflow.BatchControllerTest"
+_ASSERT = "java.lang.AssertionError"
+_STATE = "java.lang.IllegalStateException"
+# No approval task yet when the status already reads WAITING_APPROVAL (count 0, or approve finds no task) ...
+_NO_TASK = re.compile(r"expected:<1> but was:<0>")
+_NO_PENDING = re.compile(r"No pending approval for process instance \S+")
+# ... or the run still alive when the status already reads FAILED.
+_STILL_ALIVE = re.compile(r"expected null, but was:<.*>")
+
+# (class, test method, exception type, full-message pattern): the race as each test shows it.
+KNOWN_RACE = [
+    (_PROCESS, "approvedBatchIsPublished", _ASSERT, _NO_TASK),
+    (_PROCESS, "approvedBatchIsPublished", _STATE, _NO_PENDING),
+    (_PROCESS, "rejectedBatchIsNotPublished", _STATE, _NO_PENDING),
+    (_PROCESS, "startReturnsBeforeTheBackgroundStepsFinish", _ASSERT, _NO_TASK),
+    (_PROCESS, "sparkFailureFailsTheRunWithTheReason", _ASSERT, _STILL_ALIVE),
+    (_CONTROLLER, "startThenApproveOverRest", _ASSERT, re.compile(r"Status expected:<200> but was:<409>")),
+    (_CONTROLLER, "approvingTwiceIsAConflict", _STATE, _NO_PENDING),
+]
+
+
+def is_known_race(cls, name, kind, message):
+    return any(cls == c and name == n and kind == k and p.fullmatch(message)
+               for c, n, k, p in KNOWN_RACE)
 
 BUILDING = re.compile(r"^\[INFO\] Building (\S+) \d\S*")
 RUNNING = re.compile(r"^\[INFO\] Running ([\w.$]+)$")
@@ -40,15 +62,13 @@ def run_order(log_path):
 
 
 def flakes(reports_root):
+    """Every failed try of a test that passed in the end: (class, method, exception type, message)."""
     found = []
     for path in sorted(glob.glob(os.path.join(reports_root, "**", "TEST-*.xml"), recursive=True)):
         for case in ET.parse(path).getroot().iter("testcase"):
-            first = case.find("flakyFailure")
-            if first is None:
-                first = case.find("flakyError")
-            if first is not None:
-                message = (first.get("message") or first.get("type") or "").splitlines()
-                found.append((case.get("classname"), case.get("name"), message[0][:200] if message else ""))
+            for tried in list(case.iter("flakyFailure")) + list(case.iter("flakyError")):
+                found.append((case.get("classname"), case.get("name"), tried.get("type") or "",
+                              (tried.get("message") or "").strip()))
     return found
 
 
@@ -75,11 +95,12 @@ def main(log_path, reports_root):
     out += ["", "## Tests that passed only on a retry", ""]
     if not found:
         out.append("None.")
-    for cls, name, message in found:
-        known = cls in KNOWN_RACE_CLASSES
+    for cls, name, kind, message in found:
+        known = is_known_race(cls, name, kind, message)
         bad += 0 if known else 1
-        out.append("- %s %s.%s: %s" % ("known approval race (SBM-3):" if known else "FAIL, not a known flaky class:",
-                                       cls, name, message))
+        first_line = (message.splitlines() or [""])[0][:200]
+        out.append("- %s %s.%s: %s: %s" % ("known approval race (SBM-3):" if known else "FAIL, not the known race:",
+                                           cls, name, kind, first_line))
     if not order:
         out.append("")
         out.append("FAIL: no 'Running <class>' line in %s, so the order cannot be shown" % log_path)
