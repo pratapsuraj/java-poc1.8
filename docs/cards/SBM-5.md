@@ -204,3 +204,56 @@ Local whole build `mvn -B clean test -Dsurefire.runOrder=alphabetical`, no retri
 |---|---|
 | The pipeline on the latest commit passes, the acceptance tests unchanged | Run on 3b46d33 https://github.com/pratapsuraj/java-poc1.8/actions/runs/46106502027 : all four jobs green (ui, java, acceptance, ac4); java 33 + 7 + 41 run, 0 failed, 2 skipped (HBase), no `Flakes` line; ui 25/25. Log `.prime/tmp/SBM-5/pipeline-review-fix.log`. The commit after it (this card file only) gets its own run, linked in the done comment |
 | The pull request is ready for review | https://github.com/pratapsuraj/java-poc1.8/pull/7 , not a draft, head 3b46d33 when checked |
+
+## Verify, Verify, 2026-11-28
+
+Source-blind: briefed from the card and this file only; the change's source was not read. Read: tests, the file list of `git diff --stat origin/main card/SBM-5`, main's own source (the old version), build logs. Fresh clones of `main` (5a91d26) and the pull request's head (ffb9c74) in `.prime/tmp/SBM-5/v-old`, `v-new`. Windows 11, Corretto 1.8.0_512, Maven 3.9.16. Harness, scripts and summaries: `docs/cards/SBM-5-verify/`.
+
+### Per criterion
+
+| Criterion | Test | Red run (before the fix) | Green run (latest code commit, 3b46d33 / head ffb9c74) | Result |
+|---|---|---|---|---|
+| AC1 approving at once after 'waiting for approval' never gets 409 | `ApprovalRaceAcceptanceTest.ac1_approveAtOnceAfterWaitingApprovalNeverGets409`, `ac1_approvalTaskExistsWhenWaitingApprovalIsShown` | https://github.com/pratapsuraj/java-poc1.8/actions/runs/45987853559 (5b9f50c): both fail on all 3 attempts | https://github.com/pratapsuraj/java-poc1.8/actions/runs/46106795080 (ffb9c74): pass, class 6 of 6, no retry | holds |
+| AC2 a run shown failed has ended, with no approval task | `ac2_sparkFailureShownFailedHasEndedWithNoApprovalTask`, `ac2_badCsvShownFailedHasEndedWithNoApprovalTask` | same red run: both fail on all 3 attempts | same green run: pass | holds |
+| AC3 existing tests unchanged, pass 20 runs in a row without retries; new tests pass | `ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries`; "unchanged": `git diff --stat origin/main card/SBM-5` modifies no test file (adds 3 test files; the only other non-source change is `ci.yml`, the person's answer to SBM-Q7) | passed on the pipeline's runner before the fix (weak there, as Test design said); fails locally on main's source (M0 below) | same green run: pass; every Java class passes, no `Flakes` line, so no test needed the pipeline's retry; ui 25/25 | holds |
+| AC4 all else as before, side-by-side with main | `ac4_statusSequencesAreAsBefore` plus the side-by-side below | passes before (behaviour kept); killed by mutants M4 to M7 | same green run: pass | holds |
+
+Pipeline on the head ffb9c74 (the latest commit before this section): run 46106795080, jobs java, ui, acceptance, ac4 all success. This section's own commit changes only `docs/`; its run is linked in the done comment.
+
+### Side-by-side, main against the pull request's head
+
+Reach 1, in-process through the REST controller with the test infrastructure (`SbsHarnessTest`): 5 timing scenarios x 50 runs + 1 x 5, an input sweep of 25 inputs x 3 runs (the 3 sample-data files, header only, zero-byte, one row, reordered rows, rounding ties, extra decimals, negative, very large, each field empty or invalid alone, missing and extra column, no header, non-ASCII region, blank line, CRLF, BOM, missing file), and 7 API edges (unknown id GET and approve, bad date, empty path, empty body, approve twice, approve while running). Recorded per run: status shown at start, status acted on, whether the run was alive and had an approval task at that moment, the approve answer, final status, error text, report content. 345 runs or calls per side.
+
+Reach 2, the real status store: HBase 1.4 in a throwaway container (`harisekhon/hbase:1.4`, removed afterwards), the app's own `HBaseSalesRepository`, fake Spark step (`SbsHBaseHarnessTest`): 4 scenarios x 30 runs per side.
+
+| Group | main | head | Ledger entry |
+|---|---|---|---|
+| Approve or reject the moment 'waiting for approval' shows (in-process; 105 runs, plus 50 polling every 50 ms) | 17 of 105 got `409 No pending approval` and stayed waiting; the approval task did not exist yet when shown in 95 of 105 (1 of 50 with polling) | 0 got 409; task present 155 of 155 | 1, intended, stricter: matches |
+| Same, on HBase | no 409 seen, but 7 of 60 shown before the task existed | task present 60 of 60 | 1, intended, stricter: matches |
+| Shown failed (Spark failure, bad CSV) | run still alive when shown failed: 100 of 100 in-process, 45 of 60 on HBase | ended, no task: 160 of 160 | 2, intended, stricter: matches |
+| Everything else: final statuses, error texts, reports for all 25 inputs, every API edge | identical | identical | none needed |
+
+No difference outside the ledger, none wider or in the other direction. Environment axis: exempt as Assess recorded (no runtime, library or locale change; the change is when a status is written). Seen in both, not the change: an empty productId fails the run with error text `2` (an unhelpful message today, unchanged).
+
+### Sensitivity check
+
+Source-blind recipes: a changed file swapped back to main's copy (removes the guard without reading it), and single-fault mutants of files the change does not touch. Card's tests run on each (`run-sensitivity.sh`, summary `sensitivity-summary.txt`). Baseline on the head: all pass.
+
+| Mutant | Fails |
+|---|---|
+| M0 main's source with the acceptance tests (reference) | AC1 x2, AC2 x2, AC3 |
+| M1 `SparkJobDelegate` from main | AC1 x2, AC3 |
+| M2 `RunFailure` from main | AC2 x2 |
+| M3 `HBaseSalesRepository` from main (store falls back to read-then-write) | `HBaseConditionalAuditTest` 3 of 3 (errors: the mocked table is read, not checked-and-put) |
+| M4 report qty column swapped | AC4, AC3 |
+| M5 reject writes COMPLETED | AC4, AC3 |
+| M6 publish writes DONE | AC1 (REST), AC4, AC3 |
+| M7 ingest does not write RUNNING | all 6 (the conditional write then never lands; the run sticks at QUEUED) |
+
+Every acceptance test fails for at least one mutant; no mutant survived. `AfterCommitTest` was not mutated (it would need the change's source); Build's recipe for it is recorded above. The project has no mutation testing tool.
+
+### Gaps and decisions
+
+- Second verifier: the workflow asks for two; this session has no tool to start a subagent, so only one verifier's verdict exists. Recorded, not asked (machinery).
+- AC3 on the pipeline: the AC3 test did not fail on the pipeline's runner before the fix; locally it fails on main's source (M0, M1). The pipeline still passes retries (removing them is a later card); no retry was used on the green run.
+- Real artifact with real Spark: not run (needs the Spark cluster); the HBase reach used the real store with a fake Spark step.

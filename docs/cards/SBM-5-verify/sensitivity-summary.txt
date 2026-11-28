@@ -1,0 +1,67 @@
+== base-pr-head exit 0
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.788 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 95.169 s - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.448 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD SUCCESS
+== M0-main-source-with-acceptance-tests exit 1
+Tests run: 6, Failures: 5, Errors: 0, Skipped: 0, Time elapsed: 63.136 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 55.66 s  <<< FAILURE!
+ac1_approveAtOnceAfterWaitingApprovalNeverGets409(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.284 s  <<< FAILURE!
+ac1_approvalTaskExistsWhenWaitingApprovalIsShown(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.265 s  <<< FAILURE!
+ac2_sparkFailureShownFailedHasEndedWithNoApprovalTask(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.271 s  <<< FAILURE!
+ac2_badCsvShownFailedHasEndedWithNoApprovalTask(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.449 s  <<< FAILURE!
+BUILD FAILURE
+== M1-SparkJobDelegate-from-main exit 1
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.872 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 24.522 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 10.173 s  <<< FAILURE!
+ac1_approveAtOnceAfterWaitingApprovalNeverGets409(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.303 s  <<< FAILURE!
+ac1_approvalTaskExistsWhenWaitingApprovalIsShown(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.29 s  <<< FAILURE!
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.453 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD FAILURE
+== M2-RunFailure-from-main exit 1
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.102 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 88.44 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac2_sparkFailureShownFailedHasEndedWithNoApprovalTask(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.257 s  <<< FAILURE!
+ac2_badCsvShownFailedHasEndedWithNoApprovalTask(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.154 s  <<< FAILURE!
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.432 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD FAILURE
+== M3-HBaseSalesRepository-from-main exit 1
+Tests run: 3, Failures: 0, Errors: 3, Skipped: 0, Time elapsed: 1.44 s <<< FAILURE! - in com.example.salesbatch.common.HBaseConditionalAuditTest
+aFailedCheckAndPutIsReported(com.example.salesbatch.common.HBaseConditionalAuditTest)  Time elapsed: 1.332 s  <<< ERROR!
+writesWithOneCheckAndPutOnTheExpectedStatus(com.example.salesbatch.common.HBaseConditionalAuditTest)  Time elapsed: 0 s  <<< ERROR!
+reportsNoWriteWhenTheStatusHasMovedOn(com.example.salesbatch.common.HBaseConditionalAuditTest)  Time elapsed: 0 s  <<< ERROR!
+BUILD FAILURE
+== M4-report-qty-column-swapped exit 1
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.617 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 29.071 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 6.285 s  <<< FAILURE!
+ac4_statusSequencesAreAsBefore(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.304 s  <<< FAILURE!
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.441 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD FAILURE
+== M5-reject-writes-COMPLETED exit 1
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.881 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 28.299 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 6.341 s  <<< FAILURE!
+ac4_statusSequencesAreAsBefore(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.545 s  <<< FAILURE!
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.455 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD FAILURE
+== M6-publish-writes-DONE exit 1
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.63 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 3, Errors: 0, Skipped: 0, Time elapsed: 20.425 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 6.161 s  <<< FAILURE!
+ac1_approveAtOnceAfterWaitingApprovalNeverGets409(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.353 s  <<< FAILURE!
+ac4_statusSequencesAreAsBefore(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 0.31 s  <<< FAILURE!
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.445 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD FAILURE
+== M7-ingest-drops-RUNNING exit 1
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.559 s - in com.example.salesbatch.common.HBaseConditionalAuditTest
+Tests run: 6, Failures: 6, Errors: 0, Skipped: 0, Time elapsed: 249.797 s <<< FAILURE! - in com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest
+ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 142.771 s  <<< FAILURE!
+ac1_approveAtOnceAfterWaitingApprovalNeverGets409(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 20.062 s  <<< FAILURE!
+ac1_approvalTaskExistsWhenWaitingApprovalIsShown(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 20.051 s  <<< FAILURE!
+ac2_sparkFailureShownFailedHasEndedWithNoApprovalTask(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 20.064 s  <<< FAILURE!
+ac2_badCsvShownFailedHasEndedWithNoApprovalTask(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 20.043 s  <<< FAILURE!
+ac4_statusSequencesAreAsBefore(com.example.salesbatch.workflow.ApprovalRaceAcceptanceTest)  Time elapsed: 20.093 s  <<< FAILURE!
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.441 s - in com.example.salesbatch.workflow.delegate.AfterCommitTest
+BUILD FAILURE

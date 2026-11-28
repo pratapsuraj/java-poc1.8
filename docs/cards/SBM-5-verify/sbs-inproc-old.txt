@@ -1,0 +1,82 @@
+## 01 approve the moment WAITING_APPROVAL shows (REST, no sleep)
+  35  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P2,1,4.00,1
+   8  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=409 {"error":"No pending approval for process instance <id>"} final=WAITING_APPROVAL pollMonotone=true error=null endedAfter=false report=none
+   7  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P2,1,4.00,1
+## 02 reject the moment WAITING_APPROVAL shows
+  40  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=200 {"processInstanceId":"<id>","status":"REJECTED"} final=REJECTED pollMonotone=true error=null endedAfter=true report=none
+   7  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=409 {"error":"No pending approval for process instance <id>"} final=WAITING_APPROVAL pollMonotone=true error=null endedAfter=false report=none
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"REJECTED"} final=REJECTED pollMonotone=true error=null endedAfter=true report=none
+## 03 approve after polling with 50ms sleeps
+   1  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P2,1,4.00,1
+  49  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P2,1,4.00,1
+## 04 spark failure
+  50  startStatus=QUEUED decision=FAILED atDecision[alive=true,tasks=0] act=- final=FAILED pollMonotone=true error=spark-submit exited with code 1 endedAfter=true report=none
+## 05 bad number in CSV
+  50  startStatus=QUEUED decision=FAILED atDecision[alive=true,tasks=0] act=- final=FAILED pollMonotone=true error=Line 2: bad number (For input string: "notanumber") endedAfter=true report=none
+## 06 slow spark (300ms), approve at once
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P2,1,4.00,1
+   2  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=409 {"error":"No pending approval for process instance <id>"} final=WAITING_APPROVAL pollMonotone=true error=null endedAfter=false report=none
+## 10 input: BOM
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 1: bad number (For input string: "qty") endedAfter=true report=none
+## 10 input: CRLF
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,1,1.00,1
+## 10 input: amount not a number
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 2: bad number (null) endedAfter=true report=none
+## 10 input: blank line inside
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,2,2.00,2
+## 10 input: extra column
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 2: expected 5 fields but found 6 endedAfter=true report=none
+## 10 input: extra decimals
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,1,1.123456789,1
+## 10 input: header only
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount
+## 10 input: missing column
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 2: expected 5 fields but found 4 endedAfter=true report=none
+## 10 input: missing file
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=does-not-exist.csv endedAfter=true report=none
+## 10 input: negative qty and amount
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,-2,-3.50,1
+## 10 input: no header
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,1,1.00,1
+## 10 input: one row
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,1,1.00,1
+## 10 input: orderId empty
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,1,1.00,1
+## 10 input: productId empty
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=2 endedAfter=true report=none
+## 10 input: qty decimal
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 2: bad number (For input string: "1.5") endedAfter=true report=none
+## 10 input: qty not a number
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 2: bad number (For input string: "x") endedAfter=true report=none
+## 10 input: region empty
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,,P1,1,1.00,1
+## 10 input: reordered rows
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P2,1,4.00,1
+## 10 input: rounding ties
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,3,2.355,3
+## 10 input: sample sales-20261113.csv
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,5,26.25,2|<date>,US,P1,5,30.00,1|<date>,US,P2,1,4.00,1
+## 10 input: sample sales-20261115.csv
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,APAC,P1,6,36.00,1|<date>,APAC,P2,3,12.00,1|<date>,APAC,P4,3,38.97,2|<date>,EU,P1,5,26.25,2|<date>,EU,P2,1,4.00,1|<date>,EU,P3,4,22.00,1|<date>,US,P1,5,30.00,1|<date>,US,P2,3,12.00,2|<date>,US,P3,3,16.50,1
+## 10 input: sample sales-bad.csv
+   3  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED pollMonotone=true error=Line 3: bad number (For input string: "notanumber") endedAfter=true report=none
+## 10 input: unicode region
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,Zürich,P1,1,1.00,1
+## 10 input: very large
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount|<date>,EU,P1,2147483648,100000000000000.00,2
+## 10 input: zero-byte
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED pollMonotone=true error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount
+## 20 GET unknown id
+   1  404 
+## 21 approve unknown id
+   1  409 {"error":"No pending approval for process instance nope"}
+## 22 bad date
+   1  400 {"error":"businessDate must be yyyyMMdd"}
+## 23 empty csvPath
+   1  400 {"error":"csvPath is required"}
+## 24 null body fields
+   1  400 {"error":"businessDate must be yyyyMMdd"}
+## 25 approve twice
+   5  409 {"error":"No pending approval for process instance <id>"}
+## 26 approve while RUNNING
+   5  RUNNING 409 {"error":"No pending approval for process instance <id>"}
