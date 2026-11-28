@@ -1,0 +1,12 @@
+## H1 HBase: approve the moment WAITING_APPROVAL shows
+   3  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount
+  27  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"COMPLETED"} final=COMPLETED error=null endedAfter=true report=date,region,productId,totalQty,totalAmount,orderCount
+## H2 HBase: reject the moment WAITING_APPROVAL shows
+   4  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=0] act=200 {"processInstanceId":"<id>","status":"REJECTED"} final=REJECTED error=null endedAfter=true report=none
+  26  startStatus=QUEUED decision=WAITING_APPROVAL atDecision[alive=true,tasks=1] act=200 {"processInstanceId":"<id>","status":"REJECTED"} final=REJECTED error=null endedAfter=true report=none
+## H3 HBase: spark failure
+   1  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED error=spark-submit exited with code 1 endedAfter=true report=none
+  29  startStatus=QUEUED decision=FAILED atDecision[alive=true,tasks=0] act=- final=FAILED error=spark-submit exited with code 1 endedAfter=true report=none
+## H4 HBase: bad number in CSV
+  14  startStatus=QUEUED decision=FAILED atDecision[alive=false,tasks=0] act=- final=FAILED error=Line 2: bad number (For input string: "notanumber") endedAfter=true report=none
+  16  startStatus=QUEUED decision=FAILED atDecision[alive=true,tasks=0] act=- final=FAILED error=Line 2: bad number (For input string: "notanumber") endedAfter=true report=none
