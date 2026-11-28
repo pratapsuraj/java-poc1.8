@@ -330,3 +330,16 @@ The workflow asks for two verifiers. This session has no way to start a subagent
 - Every criterion's test passed in the pipeline on the latest commit: yes (run 46157383511 on a883023); this card-file commit is docs-only.
 - The evidence lists criterion, test, run and result, and links the red run: the table above.
 - Held back by the sensitivity check: AC2 (and AC1) do not notice the fix being removed.
+
+## Build (after Verify), the card lead, 2026-11-28
+
+Verify sent the card back: AC2's fixed seeds (7, 12, 19) no longer reached a failing order once `main` (SBM-5) added two classes, so AC2 passed with the fix removed.
+
+What I did: AC2 (`RunOrderAcceptanceTest`) no longer uses fixed seeds. It takes the first three seeds from 1 upward whose shuffle is a risky order, and fails loudly if fewer than three in 1..1000 are. Risky: the first class that could build the shared Spring context (run by Spring's runner, or `WorkflowServerTest`, which set `report.dir` JVM-wide before this card) is `WebConfigTest` or `DataControllerTest`, the two that set no report folder before the fix. Any other Spring class, new ones included, counts as one that sets the folder, so a new class can only make fewer orders count as risky, never more. The seeds are printed (`SBM-6 AC2 seeds: [...]`) and each failure names its seed and order. Today's seeds are 2, 3 and 6.
+
+Recorded decision: this changes an acceptance test after Test design. The criterion (AC2, three seeds, random order, fresh folder) stays as the person wrote it. Only how the test picks its seeds changed, so that it can fail again without the fix. AC1, AC3, AC4 and the AC4 resource are unchanged.
+
+Checks (scratch `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-6\`):
+- Sensitivity, Verify's M1 run again: a worktree with the fix's five test files taken from `main` and the new AC2. `mvn -B test -pl workflow-app -am -DfailIfNoTests=false -Dtest=RunOrderAcceptanceTest`: **AC2 fails**, seed 2 (order starts `DataControllerTest, WorkflowServerTest, ...`), `SalesBatchProcessTest.approvedBatchIsPublished` cannot find `report-20261113.csv`, and SBM-5's `ApprovalRaceAcceptanceTest.ac3_...` fails for the same reason. AC1, AC3 and AC4 pass (`rb-sens-fix-reverted.log`).
+- With the fix: 4 of 4 pass in 488 s, seeds [2, 3, 6] (`rb-with-fix.log`).
+- AC1 still passes with the fix removed. That was known from Test design: reverse alphabetical order runs `WorkflowServerTest` first, which sets the folder. The person's criterion fixes the order, so AC1 checks behaviour that is kept, and AC2 is the test that catches a missing fix.

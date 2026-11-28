@@ -46,10 +46,19 @@ import org.junit.runner.notification.Failure;
 public class RunOrderAcceptanceTest {
 
     /**
-     * Seeds for AC2, fixed so a failing order can be run again. Each puts DataControllerTest (7, 12) or WebConfigTest
-     * (19), classes that set no report folder, first among the Spring classes: the orders that failed before SBM-6.
+     * Before SBM-6 the shared Spring test context took its report folder from the report.dir system property, which
+     * some classes set before the context was built and these two did not. An order fails without the fix when one
+     * of them builds that context first, before SalesBatchProcessTest reads its report.
      */
-    static final long[] SEEDS = {7L, 12L, 19L};
+    static final List<String> SET_NO_REPORT_FOLDER = java.util.Arrays.asList("WebConfigTest", "DataControllerTest");
+
+    /** Not run by Spring's runner, but set report.dir JVM-wide before SBM-6, so it counts as a class that set it. */
+    static final String SETS_REPORT_FOLDER_WITHOUT_SPRING_RUNNER = "WorkflowServerTest";
+
+    /** AC2 takes the first three seeds from 1 upward whose order is a risky one (see riskyOrder), up to this one. */
+    static final long LAST_SEED = 1000L;
+
+    static final int SEED_COUNT = 3;
 
     static final int RETRIES = 2;
 
@@ -62,11 +71,54 @@ public class RunOrderAcceptanceTest {
 
     @Test
     public void AC2_javaTestsPassInRandomOrderForThreeSeedsFromFreshTempFolders() throws Exception {
-        for (long seed : SEEDS) {
+        for (long seed : riskySeeds(testClasses())) {
             List<String> classes = testClasses();
             Collections.shuffle(classes, new Random(seed));
             runInChildJvm("AC2 random, seed " + seed, classes);
         }
+    }
+
+    /**
+     * The first SEED_COUNT seeds from 1 upward whose shuffle of the given classes is a risky order, so that AC2 fails
+     * without the fix whatever classes are added later. Seeds picked once by hand stopped doing so when card SBM-5
+     * added two classes (Verify's finding on SBM-6).
+     */
+    static List<Long> riskySeeds(List<String> sorted) throws Exception {
+        List<Long> seeds = new ArrayList<>();
+        for (long seed = 1; seed <= LAST_SEED && seeds.size() < SEED_COUNT; seed++) {
+            List<String> order = new ArrayList<>(sorted);
+            Collections.shuffle(order, new Random(seed));
+            if (riskyOrder(order)) {
+                seeds.add(seed);
+            }
+        }
+        assertEquals("AC2 fewer than " + SEED_COUNT + " seeds in 1.." + LAST_SEED + " shuffle " + sorted
+                + " into a risky order, so AC2 would not test one", SEED_COUNT, seeds.size());
+        System.out.println("SBM-6 AC2 seeds: " + seeds);
+        return seeds;
+    }
+
+    /**
+     * True when the first class to touch the report folder is one of SET_NO_REPORT_FOLDER: the first class run by
+     * Spring's runner or setting report.dir, so the first that could build the shared context. Any other Spring class,
+     * a new one included, counts as one that sets the folder; that can only make fewer orders risky, never more.
+     */
+    static boolean riskyOrder(List<String> order) throws Exception {
+        assertTrue("AC2 SalesBatchProcessTest, the class that reads a report, is not among " + order,
+                order.contains(SalesBatchProcessTest.class.getName()));
+        for (String name : order) {
+            Class<?> c = Class.forName(name, false, RunOrderAcceptanceTest.class.getClassLoader());
+            if (SET_NO_REPORT_FOLDER.contains(c.getSimpleName())) {
+                return true;
+            }
+            org.junit.runner.RunWith runWith = c.getAnnotation(org.junit.runner.RunWith.class);
+            boolean spring = runWith != null
+                    && org.springframework.test.context.junit4.SpringJUnit4ClassRunner.class.isAssignableFrom(runWith.value());
+            if (spring || c.getSimpleName().equals(SETS_REPORT_FOLDER_WITHOUT_SPRING_RUNNER)) {
+                return false;
+            }
+        }
+        return false;
     }
 
     @Test
