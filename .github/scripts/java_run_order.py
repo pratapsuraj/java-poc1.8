@@ -6,7 +6,9 @@ the order the run used (from Maven's "Running <class>" lines), with a command th
 A test that failed and then passed on a retry fails this step, unless every failed try is the known approval
 race (risk SBM-3, fixed by card SBM-5), for which the retries exist (card SBM-2, decision 2a). The race is
 recognised by test method, exception type and message, never by class alone, so any other failure in the
-same test (a missing report, for instance) still fails the step. Empty KNOWN_RACE when SBM-5 is merged.
+same test (a missing report, for instance) still fails the step. SBM-5 is merged (main 0ba05f1), so
+KNOWN_RACE is now empty and any test that passes only on a retry fails the step; RACE_BEFORE_SBM5 keeps the
+race's forms in case it comes back.
 
 Usage: java_run_order.py <maven log> <folder holding the surefire reports>
 """
@@ -27,7 +29,7 @@ _NO_PENDING = re.compile(r"No pending approval for process instance \S+")
 _STILL_ALIVE = re.compile(r"expected null, but was:<.*>")
 
 # (class, test method, exception type, full-message pattern): the race as each test shows it.
-KNOWN_RACE = [
+RACE_BEFORE_SBM5 = [
     (_PROCESS, "approvedBatchIsPublished", _ASSERT, _NO_TASK),
     (_PROCESS, "approvedBatchIsPublished", _STATE, _NO_PENDING),
     (_PROCESS, "rejectedBatchIsNotPublished", _STATE, _NO_PENDING),
@@ -36,6 +38,7 @@ KNOWN_RACE = [
     (_CONTROLLER, "startThenApproveOverRest", _ASSERT, re.compile(r"Status expected:<200> but was:<409>")),
     (_CONTROLLER, "approvingTwiceIsAConflict", _STATE, _NO_PENDING),
 ]
+KNOWN_RACE = []  # card SBM-5 fixed the race; set to RACE_BEFORE_SBM5 only if it is seen again
 
 
 def is_known_race(cls, name, kind, message):

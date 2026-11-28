@@ -38,8 +38,8 @@ jobs:
           set -o pipefail
           mvn -B clean test -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=random 2>&1 | tee "$RUNNER_TEMP/java-test.log"
       # Shows the class order with a command to repeat it, and fails when a test passed only on a retry
-      # for any reason other than the known approval race (matched by test, exception and message, not by
-      # class), so a retry cannot hide a new order dependence.
+      # (the approval race it could excuse, matched by test, exception and message, was fixed by card SBM-5),
+      # so a retry cannot hide a new order dependence.
       - name: Java run order, and no retries outside the known race
         if: always()
         run: python3 .github/scripts/java_run_order.py "$RUNNER_TEMP/java-test.log" .
