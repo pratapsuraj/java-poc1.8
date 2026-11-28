@@ -17,6 +17,19 @@ public interface SalesRepository {
     /** Creates or updates the audit row of a workflow run. */
     void updateAudit(String processInstanceId, String status, String approver);
 
+    /**
+     * Updates the audit row like {@link #updateAudit}, but only if its status is still {@code expectedStatus};
+     * returns whether it wrote. A store shared between threads or processes must override this with one atomic
+     * step (HBase: check-and-put). This default reads then writes, so it suits only a store with one writer.
+     */
+    default boolean updateAuditIfStatus(String processInstanceId, String expectedStatus, String status, String approver) {
+        if (!expectedStatus.equals(auditStatus(processInstanceId))) {
+            return false;
+        }
+        updateAudit(processInstanceId, status, approver);
+        return true;
+    }
+
     /** Current audit status of a workflow run, or null if unknown. */
     String auditStatus(String processInstanceId);
 
