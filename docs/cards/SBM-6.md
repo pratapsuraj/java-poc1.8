@@ -236,3 +236,45 @@ Pipeline run 46109864131 on dcae409 (https://github.com/pratapsuraj/java-poc1.8/
 
 - The pipeline on the latest commit passes, acceptance tests unchanged: run 46109864131 on dcae409 green; this card-file commit is docs-only, its run is linked in the done comment. `git diff --stat d13a17e HEAD` on the acceptance test and its resource is empty.
 - The pull request is ready for review: PR #8, ready (not draft).
+
+## Build (after second review), the card lead, 2026-11-28
+
+The blind reviewer's second pass sent the card back with one finding: `java_run_order.py:21`, `KNOWN_RACE_CLASSES` exempted the whole classes `SalesBatchProcessTest` and `BatchControllerTest`, the very classes whose report-folder dependence this card fixes, so a retry there could still hide an order dependence. Asked to exempt only the race, by test method or failure message.
+
+What I did (commit 0505dd6):
+- `KNOWN_RACE` is now a list of (class, test method, exception type, full message pattern), one entry for each way the race shows, taken from the race failures seen in SBM-2's and SBM-5's logs (`.prime/tmp/SBM-2/flaky-*.log`, `mvn-baseline.log`, `.prime/tmp/SBM-5/flaky-*.log`):
+  - `SalesBatchProcessTest.approvedBatchIsPublished`: `AssertionError` `expected:<1> but was:<0>` (no approval task yet), or `IllegalStateException` `No pending approval for process instance N`.
+  - `rejectedBatchIsNotPublished`: `IllegalStateException` `No pending approval ...`.
+  - `startReturnsBeforeTheBackgroundStepsFinish`: `AssertionError` `expected:<1> but was:<0>`.
+  - `sparkFailureFailsTheRunWithTheReason`: `AssertionError` `expected null, but was:<...>` (run still alive at `FAILED`).
+  - `BatchControllerTest.startThenApproveOverRest`: `AssertionError` `Status expected:<200> but was:<409>`; `approvingTwiceIsAConflict`: `IllegalStateException` `No pending approval ...`.
+- Every failed try of a retried test is checked (surefire writes one `flakyFailure`/`flakyError` per try; the old script read only the first). A test passes the step only when every failed try matches the race.
+- So the report-folder failure (`NoSuchFileException` in `approvedBatchIsPublished`) now fails the step even inside the race's classes. The `ci.yml` comment says so; the Java test command line is unchanged, so AC3 reads the same line.
+
+Checks (`.prime/tmp/SBM-6/race-matcher-check.sh`, log `race-matcher-check.log`; fixtures in `flake-fixture2/`):
+- No retried test: exit 0. Every race form above, one test with two race tries: exit 0, each listed as the known race.
+- `approvedBatchIsPublished` retried after `NoSuchFileException` on the report (the reviewer's case): exit 1.
+- `approvedBatchIsPublished` with one race try and one `expected:<3> but was:<4>` try: exit 1.
+- The race's 409 message on a method not in the list (`unknownBatchIs404AndBadDateIs400`): exit 1.
+- The two race classes run three times locally with retries and random order (`race-real-check.sh`): the race did not occur, so no real `flaky*` entry to check against; the message texts come from the real logs above, and the step ran clean on the real reports (exit 0, "None.").
+
+### SBM-5 merged meanwhile
+
+Commit 0505dd6 got no pipeline run: PR #8 conflicted with `main`, where card SBM-5 had been merged (0ba05f1). Merged `main` into the branch (a437ff5); the one conflict was the `ci.yml` comment where both cards had removed SBM-2's AC3 step; SBM-6's deletion of that step's script stands (answer to SBM-Q9).
+
+With the race fixed on `main`, the script's own instruction applied: commit 79e3ee2 sets `KNOWN_RACE = []`, so any test that passes only on a retry now fails the step; the race's forms stay in `RACE_BEFORE_SBM5` for record. The retries themselves stay on the `mvn` line (a person's decision on SBM-2); dropping them is for a later card. Fixture check with the empty list (`race-matcher-check-empty.log`): no retry exit 0; every fixture with a retried test, the race forms included, exit 1.
+
+Local, after the merge (`after-merge-full.sh`, `after-merge/full.log`): `mvn -B clean test`, random order, retries 2, fresh `java.io.tmpdir`: BUILD SUCCESS, `common` 33/0/0, `spark-job` 7/0/2 skipped, `workflow-app` 45/0/0 (now including SBM-5's `ApprovalRaceAcceptanceTest` and `AfterCommitTest`). `RunOrderAcceptanceTest` 4 of 4 pass; the step: "None." retried, exit 0.
+
+Observations, not changed by this card:
+- `RunOrderAcceptanceTest` now takes about 516 s locally (170 s before): its child JVMs run every `workflow-app` test class, and SBM-5's `ApprovalRaceAcceptanceTest` (about 86 s) is now one of them, four times.
+- SBM-5's `ApprovalRaceAcceptanceTest` sets `report.dir=${java.io.tmpdir}/sales-batch-test-reports` with `@TestPropertySource` in its own context, so it does not affect the other classes, but its reports stay in that shared folder between runs (two files left after the local run). Another card's acceptance test; left as it is.
+
+Acceptance tests and their resource unchanged since d13a17e.
+
+Pipeline run 46156464973 on 79e3ee2 (https://github.com/pratapsuraj/java-poc1.8/actions/runs/46156464973): all four jobs green (`java`, `ui`, `acceptance`, `ac4`). Java `common` 33/0/0, `spark-job` 7/0/2 skipped, `workflow-app` 45/0/0; `RunOrderAcceptanceTest` 4 of 4 in 420 s; random order put `DataControllerTest` before `SalesBatchProcessTest`; "Tests that passed only on a retry: None." Log: `.prime/tmp/SBM-6/pipeline-46156464973-java.log`.
+
+### Exit criteria
+
+- The pipeline on the latest commit passes, acceptance tests unchanged: run 46156464973 on 79e3ee2 green; the card-file commit after it is docs-only, its run linked in the done comment.
+- The pull request is ready for review: PR #8, ready, no longer conflicting with `main`.
