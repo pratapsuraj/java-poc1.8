@@ -104,3 +104,30 @@ jobs:
           path: reports/ui
       - name: AC4 passes, running every existing test
         run: bash .github/acceptance/AC4_passes_running_every_existing_test.sh reports/java reports/ui/ui-test.log origin/main
+
+  # Card SBM-7: no log4j 1.2 in the shipped jars, and workflow-app's log lines reach the console.
+  sbm7-acceptance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+          cache: maven
+      - name: Build the shaded jars (tests run too; the pipeline never skips them)
+        run: mvn -B package -Dsurefire.rerunFailingTestsCount=2 -Dsurefire.runOrder=alphabetical
+      - name: AC1 workflow-app jar has no log4j 1.2 classes
+        if: always()
+        run: bash .github/acceptance/SBM-7/AC1_workflow_app_jar_has_no_log4j_1_2_classes.sh
+      - name: AC2 Spark job jar has no log4j 1.2 classes
+        if: always()
+        run: bash .github/acceptance/SBM-7/AC2_spark_job_jar_has_no_log4j_1_2_classes.sh
+      - name: AC3 workflow-app log lines reach the console
+        if: always()
+        run: bash .github/acceptance/SBM-7/AC3_workflow_app_log_lines_reach_the_console.sh
+      - name: AC4 existing tests unchanged, Java 8 and EMR 5.36 versions unchanged
+        if: always()
+        run: bash .github/acceptance/SBM-7/AC4_existing_tests_unchanged_and_versions_unchanged.sh origin/${{ github.base_ref || 'main' }}
