@@ -278,3 +278,55 @@ Pipeline run 46156464973 on 79e3ee2 (https://github.com/pratapsuraj/java-poc1.8/
 
 - The pipeline on the latest commit passes, acceptance tests unchanged: run 46156464973 on 79e3ee2 green; the card-file commit after it is docs-only, its run linked in the done comment.
 - The pull request is ready for review: PR #8, ready, no longer conflicting with `main`.
+
+## Verify, Verify, 2026-11-28
+
+Verdict: **SEND BACK to Build** (Ready to build). The fix works, but the random-order acceptance test (AC2) no longer notices when the fix is removed: since `main` (SBM-5) was merged in, none of its three seeds puts the Java test classes in an order that fails without the fix.
+
+Source-blind: I read the pipeline, the test results, the build files, the file list of the change and the card file; not the change's source. Scratch: `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-6\` (`verify-*`).
+
+### The pipeline on the pull request's head
+
+PR #8 head a883023 (`main` at 0ba05f1, unchanged since). Run 46157383511 (https://github.com/pratapsuraj/java-poc1.8/actions/runs/46157383511), on the merge of a883023 into 0ba05f1: all four jobs green (`java`, `ui`, `acceptance`, `ac4`). Java: `common` 33/0/0, `spark-job` 7/0/2 skipped, `workflow-app` 45/0/0; no failure, error or flaky entry in any surefire report (artifact `java-test-reports`); the retry step printed "None.". Red run before the fix: 45995634424 (https://github.com/pratapsuraj/java-poc1.8/actions/runs/45995634424) on d13a17e, AC2 and AC3 failed on all three tries.
+
+| Criterion | Test | Red run 45995634424 | Run 46157383511 on a883023 | Sensitivity (Verify) |
+|---|---|---|---|---|
+| AC1 | `AC1_javaTestsPassInReverseAlphabeticalOrderFromAFreshTempFolder` | pass (kept behaviour) | pass | **survives**: passes with the fix removed (known since Test design; it relied on AC2) |
+| AC2 | `AC2_javaTestsPassInRandomOrderForThreeSeedsFromFreshTempFolders` | fail (seed 7) | pass | **survives**: passes with the fix removed (finding) |
+| AC3 | `AC3_pipelineRunsTheJavaTestsInNoFixedOrder` | fail | pass | killed: fails with `runOrder=alphabetical`, and with the order flag dropped |
+| AC4 | `AC4_existingTestStepsAndAssertionsAreUnchanged` | pass (kept behaviour) | pass | killed: fails for a changed assertion in `workflow-app` and in `common` |
+
+### Side-by-side: existing tests, `main` against the head (`verify-sweep.sh`, `verify-sbs/summary.txt`)
+
+Fresh clones, `mvn -B clean test -pl workflow-app -am`, no retries, each run with its own empty `java.io.tmpdir`, this card's acceptance class excluded so both sides run the same tests. 8 runs a side: reverse alphabetical, alphabetical, random three times (surefire 2.22.2 has no seed; each run's class order is logged), `WebConfigTest` then `SalesBatchProcessTest`, `SalesBatchProcessTest` then `DataControllerTest`, and the default order under `file.encoding=ISO-8859-1` with the Thai locale (Thai digits).
+
+- Head: 8 of 8 pass (33/0/0 and 41/0/0).
+- Main: 4 of 8 pass; the three random runs and the `WebConfigTest`-first pair fail on `SalesBatchProcessTest.approvedBatchIsPublished` (the report-folder dependence), the random runs also on SBM-5's `ApprovalRaceAcceptanceTest.ac3_existingWorkflowTestsPass20RunsInARowWithoutRetries`.
+- One group of differences: "main fails in some orders, head passes". It is what the card is for (its criteria), stricter on head's side; no "Known differences" ledger was written in Plan and none is needed for it. No other difference, none in the environment runs.
+- Real artifact: the change touches no `src/main`, no `pom.xml` and no properties (`git diff --stat 0ba05f1 a883023`), so the built jars come from the same inputs; not rebuilt.
+- Temp folder after the head runs: the per-context report folders are gone; `<tmpdir>/sales-batch-test-reports` stays, written by SBM-5's `ApprovalRaceAcceptanceTest` (risk SBM-10, not this card).
+
+### Sensitivity (`verify-sensitivity.sh`, `verify-sensitivity-m1.sh`, `verify-sens/summary.txt`)
+
+Fresh clone at a883023, no retries:
+
+- M0, no edit: the acceptance class passes, 4 of 4.
+- M1, the fix removed (`TestInfraConfig`, `BatchControllerTest`, `BatchControllerUploadTest`, `SalesBatchProcessTest`, `WorkflowServerTest` taken from `main`): **AC1 and AC2 pass** (`m1b-fix-reverted.log`; the first try with a method filter crashed the fork at start and is set aside). The child logs (`v-sens/workflow-app/target/sbm6-run-order/*/child.log`) show why: with SBM-5's two new classes in the list, seed 7 now starts with `WorkflowServerTest` and seed 12 with `SalesBatchProcessTest`, classes that set the report folder themselves, so the shared context is built right and nothing fails. The same seeds failed before the merge (Build's check 1, d13a17e).
+- M2, `ci.yml` back to `runOrder=alphabetical`, and M2b, the order flag dropped: AC3 fails. Killed.
+- M3 and M4, an assertion changed in `SalesBatchProcessTest` and in `common`'s `HBaseSalesRepositoryTest`: AC4 fails. Killed.
+
+### Finding, for Build
+
+AC2's seeds (7, 12, 19) were picked in Test design so that each order fails without the fix, for the class list of that day. Merging `main` added two classes, the shuffles changed, and none of the three now reaches a failing order: AC2 passes with the fix removed, so it no longer proves AC2. Reproduce: in a copy at a883023, `git checkout 0ba05f1 -- ` the five files above, then `mvn -B test -pl workflow-app -am -DfailIfNoTests=false -Dtest=RunOrderAcceptanceTest`: 4 of 4 pass.
+
+What would hold: AC2 checks, for each seed, that the order puts a class that does not set the report folder (`WebConfigTest`, `DataControllerTest`) before `SalesBatchProcessTest` with no setter before it, and fails loudly ("seed N no longer tests a risky order") if not; or seeds chosen again for today's list with that check kept so the next new class cannot blind it. Then rerun this sensitivity check (M1) and see AC2 fail. Changing an acceptance test after Test design is the builder's call to record; the criterion is unchanged.
+
+### Second verifier
+
+The workflow asks for two verifiers. This session has no way to start a subagent (no agent tool), so no second verifier ran. Gap recorded; the send-back does not depend on it.
+
+### Exit criteria
+
+- Every criterion's test passed in the pipeline on the latest commit: yes (run 46157383511 on a883023); this card-file commit is docs-only.
+- The evidence lists criterion, test, run and result, and links the red run: the table above.
+- Held back by the sensitivity check: AC2 (and AC1) do not notice the fix being removed.
