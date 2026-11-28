@@ -199,3 +199,8 @@ The blind reviewer's findings and how each is settled:
 Tests added: `common` `HBaseConditionalAuditTest` (3: one `checkAndPut` on the expected status with no `get`/`put`; returns false when the status moved on; an `IOException` is reported) and `AfterCommitTest.writesOnlyThroughTheStoresConditionalWrite`. Sensitivity: on the previous source both fail (`HBaseConditionalAuditTest` 3 errors; `AfterCommitTest` `expected:<0> but was:<1>`, the late write lands) — logs `.prime/tmp/SBM-5/sensitivity-review-fix.log`, `sensitivity-review-fix2.log`. Acceptance tests unchanged (`ApprovalRaceAcceptanceTest.java` untouched since 5b9f50c).
 
 Local whole build `mvn -B clean test -Dsurefire.runOrder=alphabetical`, no retries: BUILD SUCCESS, 81 run (33 + 7 + 41), 0 failed, 2 skipped (HBase) (`.prime/tmp/SBM-5/build-review-fix.log`).
+
+| Exit criterion | How it holds |
+|---|---|
+| The pipeline on the latest commit passes, the acceptance tests unchanged | Run on 3b46d33 https://github.com/pratapsuraj/java-poc1.8/actions/runs/46106502027 : all four jobs green (ui, java, acceptance, ac4); java 33 + 7 + 41 run, 0 failed, 2 skipped (HBase), no `Flakes` line; ui 25/25. Log `.prime/tmp/SBM-5/pipeline-review-fix.log`. The commit after it (this card file only) gets its own run, linked in the done comment |
+| The pull request is ready for review | https://github.com/pratapsuraj/java-poc1.8/pull/7 , not a draft, head 3b46d33 when checked |
