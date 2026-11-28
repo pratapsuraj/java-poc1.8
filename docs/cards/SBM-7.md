@@ -191,6 +191,7 @@ Run on 012893f: https://github.com/pratapsuraj/java-poc1.8/actions/runs/46107251
 - `sbm7-acceptance`: jars built; AC1 FAIL (297 log4j 1.2 entries), AC2 FAIL (297 entries), AC3 FAIL (no logback line on stdout; "log4j:WARN No appenders could be found"), AC4 ok. New tests fail as they must; the kept criterion passes.
 - `java`, `ui`, `ac4`: green (existing tests pass).
 - SBM-2's `acceptance` job: AC3 FAIL "existing file changed (M): .github/workflows/ci.yml" (the known dependency on SBM-6, see Plan) and AC2 FAIL "Maven is told to ignore or skip tests", caused by this card's `mvn -B package -DskipTests` step. Fixed in the next commit: the job builds the jars with the tests running (`mvn -B package` with the pipeline's rerun and order flags). Acceptance scripts unchanged.
+- Run on 6d936d8 (that fix): https://github.com/pratapsuraj/java-poc1.8/actions/runs/46107519052. `sbm7-acceptance`: jars built with the tests running, AC1, AC2, AC3 FAIL, AC4 ok. SBM-2's AC2 now ok; only SBM-2's AC3 (the SBM-6 dependency) still fails. `java`, `ui`, `ac4` green.
 
 ### Exit criteria
 
