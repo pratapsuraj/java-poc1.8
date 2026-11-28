@@ -22,7 +22,7 @@ final class RunFailure {
         String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
         LOG.error("Process {}: step {} failed: {}", pid, step, message, e);
         repository.recordError(pid, message);
-        repository.updateAudit(pid, "FAILED", null);
+        AfterCommit.status(repository, pid, "FAILED"); // once the run's end is saved
         execution.setVariable("failed", true);
     }
 }

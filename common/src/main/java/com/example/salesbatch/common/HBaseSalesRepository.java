@@ -116,6 +116,27 @@ public class HBaseSalesRepository implements SalesRepository, Closeable {
 
     @Override
     public void updateAudit(String processInstanceId, String status, String approver) {
+        Put put = auditPut(processInstanceId, status, approver);
+        try (Table table = connection.getTable(TableName.valueOf(SalesSchema.AUDIT_TABLE))) {
+            table.put(put);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot write to " + SalesSchema.AUDIT_TABLE, e);
+        }
+    }
+
+    /** One atomic check-and-put on the audit row: writes only while the stored status is {@code expectedStatus}. */
+    @Override
+    public boolean updateAuditIfStatus(String processInstanceId, String expectedStatus, String status, String approver) {
+        Put put = auditPut(processInstanceId, status, approver);
+        try (Table table = connection.getTable(TableName.valueOf(SalesSchema.AUDIT_TABLE))) {
+            return table.checkAndPut(Bytes.toBytes(processInstanceId), SalesSchema.AUDIT_CF, SalesSchema.STATUS,
+                    Bytes.toBytes(expectedStatus), put);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot write to " + SalesSchema.AUDIT_TABLE, e);
+        }
+    }
+
+    private static Put auditPut(String processInstanceId, String status, String approver) {
         Put put = new Put(Bytes.toBytes(processInstanceId));
         long now = System.currentTimeMillis();
         put.addColumn(SalesSchema.AUDIT_CF, SalesSchema.STATUS, Bytes.toBytes(status));
@@ -127,11 +148,7 @@ public class HBaseSalesRepository implements SalesRepository, Closeable {
         if (approver != null) {
             put.addColumn(SalesSchema.AUDIT_CF, SalesSchema.APPROVER, Bytes.toBytes(approver));
         }
-        try (Table table = connection.getTable(TableName.valueOf(SalesSchema.AUDIT_TABLE))) {
-            table.put(put);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot write to " + SalesSchema.AUDIT_TABLE, e);
-        }
+        return put;
     }
 
     @Override
