@@ -214,3 +214,25 @@ AC1 passes before and after the fix (explained in Test design); its guard is the
 
 - The pipeline on the latest commit passes, the acceptance tests unchanged: run 46002534491 on de9f5f2 green; this card-file commit is docs-only and its run is linked on the card's done comment.
 - The pull request is ready for review: PR #8 marked ready.
+
+## Build (after review), the card lead, 2026-11-28
+
+The blind reviewer sent the card back with one finding: `ci.yml:35`, the random-order step retries a failed test up to 2 times in the same JVM, so an order dependence that passes on a retry leaves the run green; asked to run without retries, or fail on retry results, and to print the seed.
+
+What I did (commit dcae409):
+- Retries kept: they are a person's decision (card SBM-2, decision 2a) for the approval race (risk SBM-3), which card SBM-5 fixes and is not merged yet. Dropping them would make the pipeline red on the race, not on order.
+- New step `Java run order, and no retries outside the known race` (`.github/scripts/java_run_order.py`, runs `if: always()`): reads the surefire reports and fails when any test passed only on a retry (`flakyFailure` or `flakyError`) outside the race's two classes, `SalesBatchProcessTest` and `BatchControllerTest`. The script names the constant to empty once SBM-5 is merged.
+- The seed: surefire 2.22.2 can neither print nor take a seed (`surefire.runOrder.random.seed` is 3.0.0-M6 and later; bumping the build plugin stays out of this card, as decided in Plan). So the Java step keeps its log, and the new step writes the class order each module used into the job summary, with a command that runs the `workflow-app` classes again in that order in one JVM (the acceptance test's `RunOrderAcceptanceTest$Child`).
+- Left as it is: inside the two race classes a retry still hides a failure. The order dependence this card fixed failed all three tries (run 45995634424 on d13a17e) because the cached context does not change between tries; a dependence that clears itself on a retry in those two classes would not be seen until SBM-5 lets the retries go.
+
+Checks (scratch `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-6\`):
+- The script on `build-full.log` with no retried test: order printed, exit 0. With a fixture holding a retried test in `SalesBatchProcessTest` only: exit 0; with one more in `WebConfigTest`: exit 1, naming it (`flake-fixture/`). This is the step's sensitivity check.
+- The printed reproduction command, run locally for `WebConfigTest SalesBatchProcessTest` (Windows separator): 10 tests, 0 failed (`repro-check.sh`, `repro-check.log`).
+- Acceptance tests unchanged since d13a17e; AC3's check reads the same `mvn ... test` line, still one line with `runOrder=random`; SBM-2's AC1 and AC2 checks still match (`mvn -B clean test`, retries 2, no `|| true`).
+
+Pipeline run 46109864131 on dcae409 (https://github.com/pratapsuraj/java-poc1.8/actions/runs/46109864131): all four jobs green. Java 30/0/0, 7/0/2 skipped, 34/0/0; the new step printed the order (`workflow-app`: ProcessSparkJobLauncherTest, BatchControllerUploadTest, WebConfigTest, BatchControllerTest, InfraConfigTest, SalesBatchProcessTest, ... , so `WebConfigTest` ran before `SalesBatchProcessTest`, the order that failed before the fix) and "Tests that passed only on a retry: None." Log: `.prime/tmp/SBM-6/pipeline-46109864131-java.log`.
+
+### Exit criteria
+
+- The pipeline on the latest commit passes, acceptance tests unchanged: run 46109864131 on dcae409 green; this card-file commit is docs-only, its run is linked in the done comment. `git diff --stat d13a17e HEAD` on the acceptance test and its resource is empty.
+- The pull request is ready for review: PR #8, ready (not draft).
