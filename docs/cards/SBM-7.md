@@ -247,3 +247,38 @@ The osv critical for ZooKeeper is the quorum SASL authorization bypass (CVE-2023
 | The pull request is ready for review | #9 marked ready. |
 
 Decisions taken by the card lead in Build: the pipeline job builds the jars with the tests running instead of `-DskipTests` (SBM-2's no-skip rule; Test design commit 6d936d8). Not on the cluster: the spark-job's HBase classes now use the EMR cluster's log4j 1.2.17 at runtime; not proven on EMR from here (Plan's design review, finding 4).
+
+## Build after review, the card lead, 2026-11-28
+
+Sent back by the blind reviewer (2026-11-28 14:17). Worked in the code repository itself; the old scratch worktree was clean and is removed.
+
+### Findings and what was done
+
+1. *SBM-2's no-file-changes check still runs and fails (ci.yml:80-83, AC3 script).* Fixed by merging `origin/main` (0ba05f1, SBM-5 merged) into `card/SBM-7` as merge commit 0d08cd6, not a rebase, so no pushed commit is rewritten. Main's ci.yml no longer runs that step (SBM-5, answer to SBM-Q7). The script file stays on main as SBM-2's record; it is not run, and SBM-6's pull request #8 deletes it, so this card leaves it alone to keep the two branches from conflicting.
+2. *Duplicate of the random-order test run (ci.yml:23-30); keep SBM-6's form.* Answered, not changed: main has no random-order run yet (SBM-6, #8, is open), and the `java` job on this branch is main's, untouched. The `sbm7-acceptance` job runs `mvn -B package` with the tests running because the acceptance tests need the shaded jars and SBM-2's rule forbids skipping tests; it is not a copy of SBM-6's step. Whichever of #8 and #9 merges second takes the other's `java` job as main has it; this branch adds no change to that job.
+
+Reviewer's note on ZooKeeper: answered in the Build section above (not reachable; a person's answer to SBM-Q10 item 2 kept it as is).
+
+### Pipeline on the latest code commit 0d08cd6
+
+https://github.com/pratapsuraj/java-poc1.8/actions/runs/46159518010: success, all five jobs (`java`, `ui`, `acceptance`, `ac4`, `sbm7-acceptance`).
+
+| Criterion | Result |
+|---|---|
+| AC1 | ok: workflow-app.jar holds no log4j 1.2 classes |
+| AC2 | ok: spark-job jar holds no log4j 1.2 classes |
+| AC3 | ok: 173 log lines reached the console |
+| AC4 | ok: no existing test file changed against origin/main, versions unchanged; `java` job common 33/33, spark-job 7 run 5 pass 2 skipped (live HBase, as at baseline), workflow-app 41/41: 79 pass, 2 skipped, 0 fail (main now holds SBM-5's new tests) |
+
+Acceptance scripts unchanged since 012893f (`git diff --stat 012893f HEAD -- .github/acceptance/SBM-7` is empty).
+
+### Sensitivity, AC4 version half (owed from Build, now done)
+
+On a local throwaway branch (`sens/SBM-7-ac4`, never pushed, deleted after) with `spark.version` 2.4.7 and a comment line added to `RowKeysTest.java`, committed: `AC4_...sh origin/main` exited 1 with `FAIL AC4 existing test file changed (M): common/src/test/java/.../RowKeysTest.java` and `FAIL AC4 pom.xml spark.version is '2.4.7', expected '2.4.8'`. Back on `card/SBM-7` it prints ok and exits 0. KILLED.
+
+### Exit criteria
+
+| Criterion | How it holds |
+|---|---|
+| The pipeline on the latest commit passes, the acceptance tests unchanged | Run 46159518010 green on 0d08cd6; acceptance tests unchanged. The commit after it changes only this file. |
+| The pull request is ready for review | #9 open, not draft, mergeable. |
