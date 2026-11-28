@@ -202,3 +202,48 @@ Run on 012893f: https://github.com/pratapsuraj/java-poc1.8/actions/runs/46107251
 | Pipeline on that commit shows the new tests failing | Run 46107251172: AC1 to AC3 fail, AC4 (kept) passes, its sensitivity check written above for Build. |
 
 Gap outside the card: SBM-2's no-existing-file-changes check fails on any edit to `ci.yml` or a pom until SBM-6 (which removes it) is merged; Build rebases on main then.
+
+## Build, the card lead, 2026-11-28
+
+Worked in the card's worktree `<programme>/.prime/tmp/SBM-7/wt` (the person's working copy stays on `card/SBM-6`; Assess's decision). The roadmap's steps applied in order, as Plan's trial 3 tried them (patches `step1.patch`, `step2.patch` in the scratch folder):
+
+1. 2c936ff: `common/pom.xml` excludes `log4j:log4j` and `org.slf4j:slf4j-log4j12` from `hbase-client`; `workflow-app/pom.xml` adds `org.slf4j:log4j-over-slf4j:${slf4j.version}`.
+2. f6d496b: `spark-job/pom.xml` shade `artifactSet` excludes `log4j:log4j` and `org.slf4j:slf4j-log4j12`.
+
+No acceptance test, existing test or version property changed (AC4 checks that in the pipeline).
+
+### Pipeline on the latest commit f6d496b
+
+https://github.com/pratapsuraj/java-poc1.8/actions/runs/46107872183
+
+| Criterion | Result |
+|---|---|
+| AC1 | ok: workflow-app.jar holds no log4j 1.2 classes |
+| AC2 | ok: spark-job jar holds no log4j 1.2 classes |
+| AC3 | ok: 173 log lines in logback's pattern reached the console of `java -jar workflow-app.jar` |
+| AC4 | ok: no existing test file changed against origin/main, Java 8 and EMR 5.36 versions unchanged; `java` job: common 30/30, spark-job 7 run 5 pass 2 skipped (needs live HBase, as at baseline), workflow-app 30/30, so 65 pass 2 skipped 0 fail, the same as Assess's baseline; `ui` and `ac4` jobs green |
+
+The run is red only on SBM-2's `acceptance` AC3, "existing file changed (M)" for `ci.yml` and the three poms. That check forbids any build file change and is removed by SBM-6 (pull request https://github.com/pratapsuraj/java-poc1.8/pull/8, open). Gap outside the card: once a person merges #8, rebase or merge main into `card/SBM-7` and the run should be green; no change to SBM-2's check is made here.
+
+### Side-by-side of the real artifact (the gap Assess left)
+
+AC3 starts `WorkflowServer` with `java -jar` from the jar. Before the change (run 46107519052, and locally `td-ac3-before.txt`): nothing on stdout, "log4j:WARN No appenders could be found" on stderr. After (run 46107872183): 173 log lines on stdout in logback's pattern. This is difference group 1 from Assess, the one the person called intended (SBM-Q10 item 1). Without HBase the app stops after start-up in both, the same as before.
+
+### Sensitivity
+
+- AC1, AC2, AC3: the same scripts fail on the jars without the change (run 46107519052: AC1 and AC2 297 log4j 1.2 entries each, AC3 no log lines) and pass with it. Removing step 2 alone leaves the spark-job jar with log4j 1.2 (Assess trial 2 listing `jar-spark-job-trial2.txt`), which AC2 rejects.
+- AC4, existing-test half: KILLED. Run on a branch whose existing test files differ (the person's working copy on `card/SBM-6`) it failed naming the five changed files.
+- AC4, version half: not run. Mutant prepared in `<programme>/.prime/tmp/SBM-7/sens-ac4` (`spark.version` 2.4.7 and a comment line in `RowKeysTest.java`), but this session may not run a git-reading script inside the scratch folder, nor the plugin's `prime-sensitivity`. Owed to Verify: commit those two edits in a copy, run `AC4_... .sh 5a91d26`; it must fail naming `spark.version` and `RowKeysTest.java`.
+
+### ZooKeeper critical: not reachable (person's answer to SBM-Q10 item 2)
+
+The osv critical for ZooKeeper is the quorum SASL authorization bypass (CVE-2023-44981, fixed only in 3.7.2, 3.8.3, 3.9.1). It affects ZooKeeper servers with `quorum.auth.enableSasl=true`; this app ships the ZooKeeper client (3.4.10 in workflow-app, 3.4.6 in spark-job) that HBase 1.4.13 needs, and runs no quorum peer. No 3.4.x release has the fix and a bump leaves HBase 1.4.13 and the EMR 5.36 pin. Kept as is; the cluster-side log4j is the open risk SBM-9.
+
+### Exit criteria
+
+| Criterion | How it holds |
+|---|---|
+| The pipeline on the latest commit passes, the acceptance tests unchanged | All SBM-7 acceptance tests and existing tests pass on f6d496b; acceptance scripts unchanged since 012893f. Gap outside the card: SBM-2's no-file-changes check, removed by SBM-6's pull request #8. |
+| The pull request is ready for review | #9 marked ready. |
+
+Decisions taken by the card lead in Build: the pipeline job builds the jars with the tests running instead of `-DskipTests` (SBM-2's no-skip rule; Test design commit 6d936d8). Not on the cluster: the spark-job's HBase classes now use the EMR cluster's log4j 1.2.17 at runtime; not proven on EMR from here (Plan's design review, finding 4).
