@@ -18,8 +18,10 @@ import com.example.salesbatch.common.SalesRepository;
  * registered to run after the commit; if the job rolls back, nothing is written and the retried job registers again.
  *
  * <p>After commit the write is retried up to 3 times; if it still fails, the error is logged and the last status
- * stays (the run itself is unaffected). It writes only over {@code RUNNING}, so a late write can never replace a
+ * stays (the run itself is unaffected). It writes only over {@code RUNNING}, in one conditional write
+ * ({@link SalesRepository#updateAuditIfStatus}, a check-and-put in HBase), so a late write can never replace a
  * status written after it (for example {@code COMPLETED} by an approve that did not wait for the status).
+ * Retry pauses (100, 200, 400 ms) happen only when the store fails, after the job has committed.
  */
 final class AfterCommit {
 
@@ -60,11 +62,9 @@ final class AfterCommit {
             long pause = FIRST_PAUSE_MILLIS;
             for (int attempt = 0; ; attempt++) {
                 try {
-                    String current = repository.auditStatus(processInstanceId);
-                    if (EXPECTED_BEFORE.equals(current)) {
-                        repository.updateAudit(processInstanceId, status, null);
-                    } else {
-                        LOG.warn("Process {}: status {} not written, the run is already {}", processInstanceId, status, current);
+                    if (!repository.updateAuditIfStatus(processInstanceId, EXPECTED_BEFORE, status, null)) {
+                        LOG.warn("Process {}: status {} not written, the run is no longer {}",
+                                processInstanceId, status, EXPECTED_BEFORE);
                     }
                     return;
                 } catch (RuntimeException e) {

@@ -188,3 +188,14 @@ The answer (SBM-Q7, a person, 2026-11-27 11:39, default): remove SBM-2's "no cod
 | The pull request is ready for review | https://github.com/pratapsuraj/java-poc1.8/pull/7 marked ready (`gh pr ready 7`) |
 
 Note: the pipeline still passes `-Dsurefire.rerunFailingTestsCount=2` (SBM-2's decision); removing the retries is the later card the description names. AC3's "without retries" is shown by the AC3 acceptance test, which runs the two existing classes 20 times in-process with no reruns.
+
+### Build, after Review sent it back, the card lead, 2026-11-28
+
+The blind reviewer's findings and how each is settled:
+
+1. `AfterCommit` guarded with a read then a write (`auditStatus`, then `updateAudit`), so an approve that did not wait could write `COMPLETED`/`REJECTED` between the two and be overwritten. **Fixed**: the write is now one conditional step. `common` `SalesRepository` gains `updateAuditIfStatus(pid, expected, status, approver)` (returns whether it wrote); `HBaseSalesRepository` implements it with one HBase `checkAndPut` on `audit:status` (atomic per row, HBase 1.4 API), sharing the `Put` it builds for `updateAudit`. The interface's default (read then write) is for single-writer stores only and says so; the only other implementation is the test double `InMemorySalesRepository`, left unchanged (SA-2). `AfterCommit` calls the conditional write; the class comment now says how the guard holds. This widens the change map by `common` (two files), a deviation from Plan's "common not touched", taken because the reviewer's fix needs an atomic write in the store (SA-3, tool choice). Residual from Plan's design note closed.
+2. Sleeping retries hold the job executor thread up to 700 ms (nit). **Answered, not changed**: the pauses happen only when the store fails, after the job has committed, bounded at 700 ms per write; the person chose retry 3 times (SBM-Q6 item 3). A separate executor would add a thread pool for a failure path. Noted in the class comment.
+
+Tests added: `common` `HBaseConditionalAuditTest` (3: one `checkAndPut` on the expected status with no `get`/`put`; returns false when the status moved on; an `IOException` is reported) and `AfterCommitTest.writesOnlyThroughTheStoresConditionalWrite`. Sensitivity: on the previous source both fail (`HBaseConditionalAuditTest` 3 errors; `AfterCommitTest` `expected:<0> but was:<1>`, the late write lands) — logs `.prime/tmp/SBM-5/sensitivity-review-fix.log`, `sensitivity-review-fix2.log`. Acceptance tests unchanged (`ApprovalRaceAcceptanceTest.java` untouched since 5b9f50c).
+
+Local whole build `mvn -B clean test -Dsurefire.runOrder=alphabetical`, no retries: BUILD SUCCESS, 81 run (33 + 7 + 41), 0 failed, 2 skipped (HBase) (`.prime/tmp/SBM-5/build-review-fix.log`).

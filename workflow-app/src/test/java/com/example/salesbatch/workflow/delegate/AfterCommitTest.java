@@ -45,6 +45,31 @@ public class AfterCommitTest {
         assertEquals("COMPLETED", repo.auditStatus("p"));
     }
 
+    /** The store's own conditional write decides: when it reports another status won, nothing else is written. */
+    @Test
+    public void writesOnlyThroughTheStoresConditionalWrite() {
+        final int[] plainWrites = {0};
+        InMemorySalesRepository repo = new InMemorySalesRepository() {
+            @Override
+            public boolean updateAuditIfStatus(String pid, String expected, String status, String approver) {
+                assertEquals("RUNNING", expected);
+                return false; // as a check-and-put that lost to an approve's COMPLETED
+            }
+
+            @Override
+            public String auditStatus(String pid) {
+                return "RUNNING"; // what a separate read sees just before the approve's write lands
+            }
+
+            @Override
+            public void updateAudit(String pid, String status, String approver) {
+                plainWrites[0]++;
+            }
+        };
+        new AfterCommit.StatusWrite(repo, "p", "WAITING_APPROVAL").run();
+        assertEquals(0, plainWrites[0]);
+    }
+
     @Test
     public void retriesThreeTimesThenWrites() {
         FlakyRepository repo = new FlakyRepository(3);
