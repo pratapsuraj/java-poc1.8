@@ -343,3 +343,11 @@ Checks (scratch `C:\Work\javapoc1.8-programme\.prime\tmp\SBM-6\`):
 - Sensitivity, Verify's M1 run again: a worktree with the fix's five test files taken from `main` and the new AC2. `mvn -B test -pl workflow-app -am -DfailIfNoTests=false -Dtest=RunOrderAcceptanceTest`: **AC2 fails**, seed 2 (order starts `DataControllerTest, WorkflowServerTest, ...`), `SalesBatchProcessTest.approvedBatchIsPublished` cannot find `report-20261113.csv`, and SBM-5's `ApprovalRaceAcceptanceTest.ac3_...` fails for the same reason. AC1, AC3 and AC4 pass (`rb-sens-fix-reverted.log`).
 - With the fix: 4 of 4 pass in 488 s, seeds [2, 3, 6] (`rb-with-fix.log`).
 - AC1 still passes with the fix removed. That was known from Test design: reverse alphabetical order runs `WorkflowServerTest` first, which sets the folder. The person's criterion fixes the order, so AC1 checks behaviour that is kept, and AC2 is the test that catches a missing fix.
+
+Pipeline run 46171080862 on e57a932 (https://github.com/pratapsuraj/java-poc1.8/actions/runs/46171080862): all four jobs green (`java`, `ui`, `acceptance`, `ac4`). Java `common` 33/0/0, `spark-job` 7/0/2 skipped, `workflow-app` 45/0/0. `RunOrderAcceptanceTest` passed 4 of 4 in 418 s with AC2 seeds [2, 3, 6]. The retry step printed "None.". Log: `.prime/tmp/SBM-6/pipeline-46171080862.log`.
+
+### Exit criteria
+
+- The pipeline on the latest commit passes: run 46171080862 on e57a932 is green. The card-file commit after it changes docs only. Acceptance tests: AC2 changed how it picks its seeds (recorded above). AC1, AC3, AC4 and the AC4 resource are unchanged.
+- The pull request is ready for review: PR #8 is ready and mergeable.
+- Second verifier and fresh-context helper: this session has no way to start a subagent, so neither ran (the same gap as before).
